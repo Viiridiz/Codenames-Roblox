@@ -1,0 +1,19 @@
+[package]
+name = "codenames-team/codenames"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+# The Framework
+Knit = "sleitnick/knit@1.7.0"
+
+# UI (Standard Roact only)
+Roact = "roblox/roact@1.4.2"
+
+# Utilities (Using the Evaera standard)
+Promise = "evaera/promise@4.0.0"
+Signal = "sleitnick/signal@2.0.1"
+
+# Testing
+TestEZ = "roblox/testez@0.4.1"

@@ -1,0 +1,13 @@
+# Roblox & Rojo
+*.rbxl.lock
+*.rbxlx.lock
+/_index/
+/packages/
+/Packages/
+
+# System
+.DS_Store
+Thumbs.db
+
+# User specific
+.vscode/
