@@ -1,7 +1,7 @@
--- src/Server/Tests/BoardService.spec.lua
 return function()
 	local ServerScriptService = game:GetService("ServerScriptService")
-	local BoardService = require(ServerScriptService.Source.Services.BoardService)
+	
+	local BoardService = require(ServerScriptService.Server.Services.BoardService)
 
 	describe("BoardService Game Board Generation", function()
 		
@@ -26,10 +26,20 @@ return function()
 				end
 			end
 
+			-- Codenames Standard Distribution
 			expect(counts.Red).to.equal(9)
 			expect(counts.Blue).to.equal(8)
 			expect(counts.Neutral).to.equal(7)
 			expect(counts.Assassin).to.equal(1)
+		end)
+
+        it("should assign valid words to cards", function()
+			local board = BoardService:GenerateBoard()
+			for _, card in ipairs(board) do
+				expect(typeof(card.Word)).to.equal("string")
+				expect(#card.Word).to.be.ok() -- Checks string is not empty
+				expect(card.Word).never.to.equal("TBD")
+			end
 		end)
 	end)
 end
