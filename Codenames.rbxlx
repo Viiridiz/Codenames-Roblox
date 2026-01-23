@@ -1177,13 +1177,32 @@ return Card]]></ProtectedString>
 							<Content name="LinkedSource"><null></null></Content>
 							<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Roact = require(ReplicatedStorage.Packages.Roact)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Lobby = Roact.Component:extend("Lobby")
 
 function Lobby:init()
 	self.state = {
-		inputText = ""
+		inputText = "",
+		errorMessage = nil -- Store error text here
 	}
+end
+
+function Lobby:handleJoin()
+	local code = self.state.inputText
+	if code == "" then return end
+	local RoomService = Knit.GetService("RoomService")
+
+	RoomService:JoinRoom(code):andThen(function(success)
+		if success then
+			self:setState({ errorMessage = Roact.None })
+			if self.props.OnJoin then
+				self.props.OnJoin(code)
+			end
+		else
+			self:setState({ errorMessage = "INVALID ROOM CODE" })
+		end
+	end)
 end
 
 function Lobby:render()
@@ -1202,7 +1221,6 @@ function Lobby:render()
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			}),
 
-			-- TITLE
 			Title = Roact.createElement("TextLabel", {
 				Text = "CODENAMES",
 				Size = UDim2.fromScale(1, 0.3),
@@ -1216,16 +1234,16 @@ function Lobby:render()
 			CreateButton = Roact.createElement("TextButton", {
 				Text = "CREATE ROOM",
 				Size = UDim2.fromScale(1, 0.2),
-				BackgroundColor3 = Color3.fromRGB(46, 204, 113), -- Green
+				BackgroundColor3 = Color3.fromRGB(46, 204, 113),
 				Font = Enum.Font.GothamBold,
 				TextSize = 24,
 				
 				[Roact.Event.Activated] = function()
-					self.props.OnCreate()
+					if self.props.OnCreate then self.props.OnCreate() end
 				end
 			}),
 
-			-- JOIN INPUT
+			-- JOIN
 			CodeInput = Roact.createElement("TextBox", {
 				PlaceholderText = "ENTER CODE",
 				Text = self.state.inputText,
@@ -1235,20 +1253,37 @@ function Lobby:render()
 				TextSize = 24,
 				
 				[Roact.Change.Text] = function(rbx)
-					self:setState({ inputText = rbx.Text })
+					-- FORCE UPPERCASE & LIMIT LENGTH
+					local cleanText = string.upper(rbx.Text):sub(1, 4)
+					rbx.Text = cleanText 
+					
+					self:setState({ 
+						inputText = cleanText,
+						errorMessage = Roact.None 
+					})
 				end
 			}),
 
-			-- JOIN
+			-- ERROR MESSAGE
+			ErrorLabel = self.state.errorMessage and Roact.createElement("TextLabel", {
+				Text = self.state.errorMessage,
+				Size = UDim2.fromScale(1, 0.1),
+				TextColor3 = Color3.fromRGB(231, 76, 60), -- Red
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamBold,
+				TextSize = 18
+			}),
+
+			-- JOIN BUTTON
 			JoinButton = Roact.createElement("TextButton", {
 				Text = "JOIN ROOM",
 				Size = UDim2.fromScale(1, 0.2),
-				BackgroundColor3 = Color3.fromRGB(52, 152, 219), -- Blue
+				BackgroundColor3 = Color3.fromRGB(52, 152, 219),
 				Font = Enum.Font.GothamBold,
 				TextSize = 24,
 				
 				[Roact.Event.Activated] = function()
-					self.props.OnJoin(self.state.inputText)
+					self:handleJoin()
 				end
 			})
 		})
@@ -1278,131 +1313,138 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local WaitingRoom = Roact.Component:extend("WaitingRoom")
 
 function WaitingRoom:init()
-	self.state = {
-		slots = {
-			RedSpymaster = nil,
-			RedOperative = nil,
-			BlueSpymaster = nil,
-			BlueOperative = nil
-		},
-		hostName = ""
-	}
+    self.state = {
+        slots = {
+            RedSpymaster = nil,
+            RedOperative = nil,
+            BlueSpymaster = nil,
+            BlueOperative = nil
+        },
+        hostName = ""
+    }
 end
 
 function WaitingRoom:didMount()
-	local RoomService = Knit.GetService("RoomService")
-	
-	self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
-		print("UI RECEIVED UPDATE:", updatedSlots, "HOST:", hostName)
-		self:setState({
-			slots = updatedSlots,
-			hostName = hostName or ""
-		})
-	end)
+    local RoomService = Knit.GetService("RoomService")
+    
+    self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
+        print("UI RECEIVED UPDATE:", updatedSlots, "HOST:", hostName)
+        self:setState({
+            slots = updatedSlots,
+            hostName = hostName or ""
+        })
+    end)
 end
 
 function WaitingRoom:willUnmount()
-	if self.connection then
-		self.connection:Disconnect()
-	end
+    if self.connection then
+        self.connection:Disconnect()
+    end
 end
 
-function WaitingRoom:RenderSlotButton(role, color, position)
-	local occupantName = self.state.slots[role]
-	local isTaken = occupantName ~= nil
-	
-	local text = role
-	if isTaken then
-		text = role .. "\n" .. occupantName
-	else
-		text = role .. "\n[ OPEN ]"
-	end
-	
-	return Roact.createElement("TextButton", {
-		Text = text,
-		Size = UDim2.fromScale(0.4, 0.15),
-		Position = position,
-		BackgroundColor3 = color,
-		BackgroundTransparency = isTaken and 0.6 or 0,
-		Font = Enum.Font.GothamBold,
-		TextSize = 18,
-		TextColor3 = Color3.new(1,1,1),
-		AutoButtonColor = false,
-		BorderSizePixel = 0,
-		
-		[Roact.Event.Activated] = function()
-			self.props.OnSelectSlot(role)
-		end
-	}, {
-		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) })
-	})
+function WaitingRoom:RenderSlotButton(role, color, position, isDisabled)
+    local occupantName = self.state.slots[role]
+    local isTaken = occupantName ~= nil
+    
+    local text = role
+    if isTaken then
+        text = role .. "\n" .. occupantName
+    else
+        text = role .. "\n[ OPEN ]"
+    end
+
+    -- Visual settings for Disabled state
+    local transparency = (isTaken or isDisabled) and 0.6 or 0
+    local activeState = not isDisabled 
+    
+    return Roact.createElement("TextButton", {
+        Text = text,
+        Size = UDim2.fromScale(0.4, 0.15),
+        Position = position,
+        BackgroundColor3 = color,
+        BackgroundTransparency = transparency,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        TextColor3 = Color3.new(1,1,1),
+        AutoButtonColor = activeState, 
+        Active = activeState, 
+        BorderSizePixel = 0,
+        
+        [Roact.Event.Activated] = function()
+            if not isDisabled then
+                self.props.OnSelectSlot(role)
+            end
+        end
+    }, {
+        Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) })
+    })
 end
 
 function WaitingRoom:render()
-	local myName = Players.LocalPlayer.Name
-	local amIHost = (myName == self.state.hostName)
-	
-	-- BUTTON STYLING
-	local startBtnColor = amIHost and Color3.fromRGB(40, 180, 100) or Color3.fromRGB(60, 60, 60)
-	local startBtnText = amIHost and "INITIATE" or "WAITING FOR HOST..."
+    local myName = Players.LocalPlayer.Name
+    local amIHost = (myName == self.state.hostName)
+    
+    local startBtnColor = amIHost and Color3.fromRGB(40, 180, 100) or Color3.fromRGB(60, 60, 60)
+    local startBtnText = amIHost and "INITIATE" or "WAITING FOR HOST..."
 
-	return Roact.createElement("Frame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(10, 10, 10),
-	}, {
-		Title = Roact.createElement("TextLabel", {
-			Text = "MISSION: " .. (self.props.RoomCode or "????") .. "\nHOST: " .. self.state.hostName,
-			Size = UDim2.fromScale(1, 0.15),
-			Position = UDim2.fromScale(0, 0.05),
-			Font = Enum.Font.GothamBlack,
-			TextSize = 24,
-			TextColor3 = Color3.fromRGB(200, 200, 200),
-			BackgroundTransparency = 1,
-		}),
+    return Roact.createElement("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(10, 10, 10),
+    }, {
+        Title = Roact.createElement("TextLabel", {
+            Text = "MISSION: " .. (self.props.RoomCode or "????") .. "\nHOST: " .. self.state.hostName,
+            Size = UDim2.fromScale(1, 0.15),
+            Position = UDim2.fromScale(0, 0.05),
+            Font = Enum.Font.GothamBlack,
+            TextSize = 24,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
+            BackgroundTransparency = 1,
+        }),
 
-		-- RED TEAM
-		RedSpy = self:RenderSlotButton("RedSpymaster", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.3)),
-		RedOp = self:RenderSlotButton("RedOperative", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.5)),
+        -- RED TEAM (Enabled)
+        RedSpy = self:RenderSlotButton("RedSpymaster", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.3), false),
+        RedOp = self:RenderSlotButton("RedOperative", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.5), false),
 
-		-- BLUE TEAM (DISABLED FOR ITERATION 1)
-		BlueSpy = self:RenderSlotButton("BlueSpymaster", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.3)),
+        -- BLUE TEAM (Disabled)
+        BlueSpy = self:RenderSlotButton("BlueSpymaster", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.3), true),
+        BlueOp = self:RenderSlotButton("BlueOperative", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.5), true),
 
-		-- START BUTTON
-		StartButton = Roact.createElement("TextButton", {
-			Text = startBtnText,
-			Size = UDim2.fromScale(0.3, 0.1),
-			Position = UDim2.fromScale(0.35, 0.8),
-			BackgroundColor3 = startBtnColor,
-			Font = Enum.Font.GothamBlack,
-			TextSize = 20,
-			TextColor3 = amIHost and Color3.new(0,0,0) or Color3.fromRGB(150,150,150),
-			AutoButtonColor = false,
-			Active = amIHost, 
-			
-			[Roact.Event.Activated] = function()
-				if amIHost then
-					self.props.OnStartGame()
-				end
-			end
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-		}),
-		
-		BackButton = Roact.createElement("TextButton", {
-			Text = "ABORT",
-			Size = UDim2.fromScale(0.1, 0.05),
-			Position = UDim2.fromScale(0.88, 0.92),
-			BackgroundColor3 = Color3.fromRGB(60, 60, 60),
-			TextColor3 = Color3.new(0.8,0.8,0.8),
-			Font = Enum.Font.GothamBold,
-			TextSize = 14,
-			AutoButtonColor = false,
-			
-			[Roact.Event.Activated] = self.props.OnLeave
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-		})
-	})
+        -- START BUTTON
+        StartButton = Roact.createElement("TextButton", {
+            Text = startBtnText,
+            Size = UDim2.fromScale(0.3, 0.1),
+            Position = UDim2.fromScale(0.35, 0.8),
+            BackgroundColor3 = startBtnColor,
+            Font = Enum.Font.GothamBlack,
+            TextSize = 20,
+            TextColor3 = amIHost and Color3.new(0,0,0) or Color3.fromRGB(150,150,150),
+            AutoButtonColor = false,
+            Active = amIHost, 
+            
+            [Roact.Event.Activated] = function()
+                if amIHost then
+                    self.props.OnStartGame()
+                end
+            end
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+        }),
+        
+        BackButton = Roact.createElement("TextButton", {
+            Text = "ABORT",
+            Size = UDim2.fromScale(0.1, 0.05),
+            Position = UDim2.fromScale(0.88, 0.92),
+            BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+            TextColor3 = Color3.new(0.8,0.8,0.8),
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            AutoButtonColor = false,
+            
+            [Roact.Event.Activated] = self.props.OnLeave
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+        })
+    })
 end
 
 return WaitingRoom]]></ProtectedString>
@@ -23716,134 +23758,149 @@ return BoardService]]></ProtectedString>
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local RoomService = Knit.CreateService {
-	Name = "RoomService",
-	Client = {
-		RoomUpdate = Knit.CreateSignal(),
-		GameStarted = Knit.CreateSignal() -- NEW SIGNAL
-	},
+    Name = "RoomService",
+    Client = {
+        RoomUpdate = Knit.CreateSignal(),
+        GameStarted = Knit.CreateSignal()
+    },
 }
 
 local activeRooms = {}
 
 local function generateCode()
-	local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	local code = ""
-	for _ = 1, 4 do
-		local rand = math.random(1, #charset)
-		code = code .. string.sub(charset, rand, rand)
-	end
-	return code
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local code = ""
+    for _ = 1, 4 do
+        local rand = math.random(1, #charset)
+        code = code .. string.sub(charset, rand, rand)
+    end
+    return code
 end
 
 local function getRoomPlayers(room)
-	local players = {}
-	for player, _ in pairs(room.Players) do
-		if typeof(player) == "Instance" and player:IsA("Player") then
-			table.insert(players, player)
-		end
-	end
-	return players
+    local players = {}
+    for player, _ in pairs(room.Players) do
+        if typeof(player) == "Instance" and player:IsA("Player") then
+            table.insert(players, player)
+        end
+    end
+    return players
 end
 
 function RoomService:CreateRoom(hostPlayer)
-	local code = generateCode()
-	while activeRooms[code] do code = generateCode() end
+    local code = generateCode()
+    while activeRooms[code] do code = generateCode() end
 
-	local newRoom = {
-		Code = code,
-		Host = hostPlayer,
-		Players = { [hostPlayer] = true },
-		Slots = {
-			RedSpymaster = nil,
-			RedOperative = nil,
-			BlueSpymaster = nil,
-			BlueOperative = nil
-		},
-		State = "Waiting"
-	}
+    local newRoom = {
+        Code = code,
+        Host = hostPlayer,
+        Players = { [hostPlayer] = true },
+        Slots = {
+            RedSpymaster = nil,
+            RedOperative = nil,
+            BlueSpymaster = nil,
+            BlueOperative = nil
+        },
+        State = "Waiting"
+    }
 
-	activeRooms[code] = newRoom
-	print("ROOM MADE: " .. code)
-	return code
+    activeRooms[code] = newRoom
+    print("ROOM MADE: " .. code)
+    return code
 end
 
 function RoomService:JoinRoom(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
+    local room = activeRooms[code]
+    if not room then return false end
 
-	room.Players[player] = true
-	print("JOINED: " .. code)
+    room.Players[player] = true
+    print("JOINED: " .. code)
 
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-	end
+    local recipients = getRoomPlayers(room)
+    if #recipients > 0 then
+        self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
+    end
 
-	return true
+    return true
 end
 
 function RoomService:JoinSlot(player, code, slotName)
-	local room = activeRooms[code]
-	if not room then return false end
+    local room = activeRooms[code]
+    if not room then return false end
 
-	for slot, owner in pairs(room.Slots) do
-		if owner == player.Name then room.Slots[slot] = nil end
-	end
+    -- CANCEL CHECK
+    if room.Slots[slotName] == player.Name then
+        room.Slots[slotName] = nil
+        print("SLOT FREED (CANCELLED): " .. slotName)
+        
+        local recipients = getRoomPlayers(room)
+        if #recipients > 0 then
+            self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
+        end
+        return true
+    end
 
-	if room.Slots[slotName] == nil then
-		room.Slots[slotName] = player.Name
-		print("SLOT TAKEN: " .. slotName)
+    -- SWAP CHECK
+    for slot, owner in pairs(room.Slots) do
+        if owner == player.Name then 
+            room.Slots[slot] = nil 
+        end
+    end
 
-		local recipients = getRoomPlayers(room)
-		if #recipients > 0 then
-			self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-		end
+    -- ASSIGN SLOT
+    if room.Slots[slotName] == nil then
+        room.Slots[slotName] = player.Name
+        print("SLOT TAKEN: " .. slotName)
 
-		return true
-	end
-	return false
+        local recipients = getRoomPlayers(room)
+        if #recipients > 0 then
+            self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
+        end
+
+        return true
+    end
+    return false
 end
 
 function RoomService:StartGame(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
-	if room.Host ~= player then return false end
+    local room = activeRooms[code]
+    if not room then return false end
+    if room.Host ~= player then return false end
 
-	room.State = "Playing"
-	print("GAME STARTED: " .. code)
-	
-	-- SIGNAL TO EVERYONE TO MOVE TO BOARD
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.GameStarted:FireFor(recipients)
-	end
-	
-	return true
+    room.State = "Playing"
+    print("GAME STARTED: " .. code)
+    
+    local recipients = getRoomPlayers(room)
+    if #recipients > 0 then
+        self.Client.GameStarted:FireFor(recipients)
+    end
+    
+    return true
 end
 
 function RoomService:GetRoom(code)
-	return activeRooms[code]
+    return activeRooms[code]
 end
 
 -- CLIENT EXPOSED METHODS
 function RoomService.Client:CreateRoom(player)
-	return self.Server:CreateRoom(player)
+    return self.Server:CreateRoom(player)
 end
 
 function RoomService.Client:JoinRoom(player, code)
-	return self.Server:JoinRoom(player, code)
+    return self.Server:JoinRoom(player, code)
 end
 
 function RoomService.Client:JoinSlot(player, code, slotName)
-	return self.Server:JoinSlot(player, code, slotName)
+    return self.Server:JoinSlot(player, code, slotName)
 end
 
 function RoomService.Client:StartGame(player, code)
-	return self.Server:StartGame(player, code)
+    return self.Server:StartGame(player, code)
 end
 
 function RoomService:KnitStart()
-	print("ROOM SERVICE STARTED")
+    print("ROOM SERVICE STARTED")
 end
 
 return RoomService]]></ProtectedString>
@@ -26107,7 +26164,7 @@ return TestSession
 			<BinaryString name="AttributesSerialize"><![CDATA[BQAAABQAAABSQlhfQmFja3VwQnJpZ2h0bmVzcwUAAIA/HgAAAFJCWF9CYWNrdXBFeHBvc3Vy
 ZUNvbXBlbnNhdGlvbgUAAAAAIQAAAFJCWF9MaWdodGluZ0NvbXBhdGliaWxpdHlNaWdyYXRl
 ZAMBJgAAAFJCWF9MaWdodGluZ1RlY2hub2xvZ3lVbmlmaWVkTWlncmF0aW9uAwEgAAAAUkJY
-X09yaWdpbmFsVGVjaG5vbG9neU9uRmlsZUxvYWQEAgAAAA==]]></BinaryString>
+X09yaWdpbmFsVGVjaG5vbG9neU9uRmlsZUxvYWQEAQAAAA==]]></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
 			<bool name="DefinesCapabilities">false</bool>
 			<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>

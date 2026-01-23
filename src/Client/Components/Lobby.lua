@@ -1,12 +1,31 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Roact = require(ReplicatedStorage.Packages.Roact)
+local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local Lobby = Roact.Component:extend("Lobby")
 
 function Lobby:init()
 	self.state = {
-		inputText = ""
+		inputText = "",
+		errorMessage = nil -- Store error text here
 	}
+end
+
+function Lobby:handleJoin()
+	local code = self.state.inputText
+	if code == "" then return end
+	local RoomService = Knit.GetService("RoomService")
+
+	RoomService:JoinRoom(code):andThen(function(success)
+		if success then
+			self:setState({ errorMessage = Roact.None })
+			if self.props.OnJoin then
+				self.props.OnJoin(code)
+			end
+		else
+			self:setState({ errorMessage = "INVALID ROOM CODE" })
+		end
+	end)
 end
 
 function Lobby:render()
@@ -25,7 +44,6 @@ function Lobby:render()
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			}),
 
-			-- TITLE
 			Title = Roact.createElement("TextLabel", {
 				Text = "CODENAMES",
 				Size = UDim2.fromScale(1, 0.3),
@@ -39,16 +57,16 @@ function Lobby:render()
 			CreateButton = Roact.createElement("TextButton", {
 				Text = "CREATE ROOM",
 				Size = UDim2.fromScale(1, 0.2),
-				BackgroundColor3 = Color3.fromRGB(46, 204, 113), -- Green
+				BackgroundColor3 = Color3.fromRGB(46, 204, 113),
 				Font = Enum.Font.GothamBold,
 				TextSize = 24,
 				
 				[Roact.Event.Activated] = function()
-					self.props.OnCreate()
+					if self.props.OnCreate then self.props.OnCreate() end
 				end
 			}),
 
-			-- JOIN INPUT
+			-- JOIN
 			CodeInput = Roact.createElement("TextBox", {
 				PlaceholderText = "ENTER CODE",
 				Text = self.state.inputText,
@@ -58,20 +76,37 @@ function Lobby:render()
 				TextSize = 24,
 				
 				[Roact.Change.Text] = function(rbx)
-					self:setState({ inputText = rbx.Text })
+					-- FORCE UPPERCASE & LIMIT LENGTH
+					local cleanText = string.upper(rbx.Text):sub(1, 4)
+					rbx.Text = cleanText 
+					
+					self:setState({ 
+						inputText = cleanText,
+						errorMessage = Roact.None 
+					})
 				end
 			}),
 
-			-- JOIN
+			-- ERROR MESSAGE
+			ErrorLabel = self.state.errorMessage and Roact.createElement("TextLabel", {
+				Text = self.state.errorMessage,
+				Size = UDim2.fromScale(1, 0.1),
+				TextColor3 = Color3.fromRGB(231, 76, 60), -- Red
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamBold,
+				TextSize = 18
+			}),
+
+			-- JOIN BUTTON
 			JoinButton = Roact.createElement("TextButton", {
 				Text = "JOIN ROOM",
 				Size = UDim2.fromScale(1, 0.2),
-				BackgroundColor3 = Color3.fromRGB(52, 152, 219), -- Blue
+				BackgroundColor3 = Color3.fromRGB(52, 152, 219),
 				Font = Enum.Font.GothamBold,
 				TextSize = 24,
 				
 				[Roact.Event.Activated] = function()
-					self.props.OnJoin(self.state.inputText)
+					self:handleJoin()
 				end
 			})
 		})
