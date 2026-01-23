@@ -1,7 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
-
--- Import the word list
 local Words = require(ReplicatedStorage.Shared.Words)
 
 local BoardService = Knit.CreateService {
@@ -9,11 +7,12 @@ local BoardService = Knit.CreateService {
     Client = {},
 }
 
--- Shuffle Method
+-- This holds the single game board for everyone
+local currentBoard = {}
+
 local function shuffle(t)
-    local n = #t
-    local newTable = table.clone(t) -- Clone
-    for i = n, 2, -1 do
+    local newTable = table.clone(t)
+    for i = #t, 2, -1 do
         local j = math.random(i)
         newTable[i], newTable[j] = newTable[j], newTable[i]
     end
@@ -21,7 +20,6 @@ local function shuffle(t)
 end
 
 function BoardService:GenerateBoard()
-    -- 1. Setup Colors (9 Red, 8 Blue, 7 Neutral, 1 Assassin)
     local colors = {}
     for _ = 1, 9 do table.insert(colors, "Red") end
     for _ = 1, 8 do table.insert(colors, "Blue") end
@@ -29,27 +27,36 @@ function BoardService:GenerateBoard()
     table.insert(colors, "Assassin")
 
     local shuffledColors = shuffle(colors)
-    local shuffledWords = shuffle(Words) -- Shuffles
+    local shuffledWords = shuffle(Words)
 
     local board = {}
     for i = 1, 25 do
         table.insert(board, {
             Id = i,
-            Word = shuffledWords[i], -- Pick the first 25 words
+            Word = shuffledWords[i],
             Color = shuffledColors[i],
-            IsRevealed = false
+            IsRevealed = false -- Hidden by default
         })
     end
-
+    
+    -- SAVE IT to the private memory
+    currentBoard = board
     return board
+end
+
+--The UI calls this to "Download" the board
+function BoardService.Client:GetBoard(player)
+    return currentBoard
+end
+
+function BoardService:KnitInit()
+    -- Generate the board immediately when the server starts
+    self:GenerateBoard()
+    print("BoardService: Initial Board Generated.")
 end
 
 function BoardService:KnitStart()
     print("BoardService Started")
-end
-
-function BoardService:KnitInit()
-    print("BoardService Initialized")
 end
 
 return BoardService

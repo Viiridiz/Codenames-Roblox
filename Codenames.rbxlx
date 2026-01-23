@@ -220,27 +220,27 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 		<Item class="Camera" referent="RBXA0E6782A39BB4FBDB052A5FB70A391E6">
 			<Properties>
 				<CoordinateFrame name="CFrame">
-					<X>0</X>
-					<Y>20</Y>
-					<Z>20</Z>
-					<R00>1</R00>
-					<R01>0</R01>
-					<R02>-0</R02>
-					<R10>-0</R10>
-					<R11>0.780868828</R11>
-					<R12>0.624695063</R12>
-					<R20>0</R20>
-					<R21>-0.624695063</R21>
-					<R22>0.780868828</R22>
+					<X>17.2097588</X>
+					<Y>123.495575</Y>
+					<Z>109.396469</Z>
+					<R00>-0.761323452</R00>
+					<R01>0.474971801</R01>
+					<R02>-0.441348493</R02>
+					<R10>-1.49011612e-08</R10>
+					<R11>0.680702269</R11>
+					<R12>0.732560277</R12>
+					<R20>0.648372293</R20>
+					<R21>0.557715297</R21>
+					<R22>-0.518234551</R22>
 				</CoordinateFrame>
 				<Ref name="CameraSubject">null</Ref>
 				<token name="CameraType">0</token>
 				<float name="FieldOfView">70</float>
 				<token name="FieldOfViewMode">0</token>
 				<CoordinateFrame name="Focus">
-					<X>0</X>
-					<Y>0</Y>
-					<Z>-5</Z>
+					<X>18.0924683</X>
+					<Y>122.030434</Y>
+					<Z>110.432953</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -263,6 +263,146 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 				<BinaryString name="Tags"></BinaryString>
 				<UniqueId name="UniqueId">725ee9f51b0abd140985642000000439</UniqueId>
 			</Properties>
+		</Item>
+		<Item class="SpawnLocation" referent="RBXFE6226BDF4D4462590443BF1A2B8D0BC">
+			<Properties>
+				<bool name="AllowTeamChangeOnTouch">false</bool>
+				<int name="Duration">10</int>
+				<bool name="Enabled">true</bool>
+				<bool name="Neutral">true</bool>
+				<int name="TeamColor">194</int>
+				<token name="shape">1</token>
+				<token name="formFactorRaw">1</token>
+				<bool name="Anchored">true</bool>
+				<bool name="AudioCanCollide">true</bool>
+				<float name="BackParamA">-0.5</float>
+				<float name="BackParamB">0.5</float>
+				<token name="BackSurface">0</token>
+				<token name="BackSurfaceInput">0</token>
+				<float name="BottomParamA">-0.5</float>
+				<float name="BottomParamB">0.5</float>
+				<token name="BottomSurface">0</token>
+				<token name="BottomSurfaceInput">0</token>
+				<CoordinateFrame name="CFrame">
+					<X>92</X>
+					<Y>0.499994993</Y>
+					<Z>197</Z>
+					<R00>1</R00>
+					<R01>0</R01>
+					<R02>0</R02>
+					<R10>0</R10>
+					<R11>1</R11>
+					<R12>0</R12>
+					<R20>0</R20>
+					<R21>0</R21>
+					<R22>1</R22>
+				</CoordinateFrame>
+				<bool name="CanCollide">true</bool>
+				<bool name="CanQuery">true</bool>
+				<bool name="CanTouch">true</bool>
+				<bool name="CastShadow">true</bool>
+				<string name="CollisionGroup">Default</string>
+				<int name="CollisionGroupId">0</int>
+				<Color3uint8 name="Color3uint8">4288914085</Color3uint8>
+				<PhysicalProperties name="CustomPhysicalProperties">
+					<CustomPhysics>false</CustomPhysics>
+				</PhysicalProperties>
+				<bool name="EnableFluidForces">true</bool>
+				<float name="FrontParamA">-0.5</float>
+				<float name="FrontParamB">0.5</float>
+				<token name="FrontSurface">0</token>
+				<token name="FrontSurfaceInput">0</token>
+				<float name="LeftParamA">-0.5</float>
+				<float name="LeftParamB">0.5</float>
+				<token name="LeftSurface">0</token>
+				<token name="LeftSurfaceInput">0</token>
+				<bool name="Locked">false</bool>
+				<bool name="Massless">false</bool>
+				<token name="Material">256</token>
+				<string name="MaterialVariantSerialized"></string>
+				<CoordinateFrame name="PivotOffset">
+					<X>0</X>
+					<Y>0</Y>
+					<Z>0</Z>
+					<R00>1</R00>
+					<R01>0</R01>
+					<R02>0</R02>
+					<R10>0</R10>
+					<R11>1</R11>
+					<R12>0</R12>
+					<R20>0</R20>
+					<R21>0</R21>
+					<R22>1</R22>
+				</CoordinateFrame>
+				<float name="Reflectance">0</float>
+				<float name="RightParamA">-0.5</float>
+				<float name="RightParamB">0.5</float>
+				<token name="RightSurface">0</token>
+				<token name="RightSurfaceInput">0</token>
+				<int name="RootPriority">0</int>
+				<Vector3 name="RotVelocity">
+					<X>0</X>
+					<Y>0</Y>
+					<Z>0</Z>
+				</Vector3>
+				<float name="TopParamA">-0.5</float>
+				<float name="TopParamB">0.5</float>
+				<token name="TopSurface">0</token>
+				<token name="TopSurfaceInput">0</token>
+				<float name="Transparency">0</float>
+				<Vector3 name="Velocity">
+					<X>0</X>
+					<Y>0</Y>
+					<Z>0</Z>
+				</Vector3>
+				<Vector3 name="size">
+					<X>12</X>
+					<Y>1</Y>
+					<Z>12</Z>
+				</Vector3>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+				<string name="Name">SpawnLocation</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+				<UniqueId name="UniqueId">725ee9f51b0abd1409856420000016bb</UniqueId>
+			</Properties>
+			<Item class="Decal" referent="RBX174E47A0CC0F4934ABD064DDF3C3F2E2">
+				<Properties>
+					<Color3 name="Color3">
+						<R>1</R>
+						<G>1</G>
+						<B>1</B>
+					</Color3>
+					<Content name="MetalnessMap"><null></null></Content>
+					<Content name="NormalMap"><null></null></Content>
+					<Content name="RoughnessMap"><null></null></Content>
+					<Content name="Texture"><url>rbxasset://textures/SpawnLocation.png</url></Content>
+					<Content name="TexturePack"><null></null></Content>
+					<string name="TexturePackMetadata"></string>
+					<float name="Transparency">0</float>
+					<Vector2 name="UVOffset">
+						<X>0</X>
+						<Y>0</Y>
+					</Vector2>
+					<Vector2 name="UVScale">
+						<X>1</X>
+						<Y>1</Y>
+					</Vector2>
+					<int name="ZIndex">1</int>
+					<token name="Face">1</token>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+					<string name="Name">Decal</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+					<UniqueId name="UniqueId">725ee9f51b0abd1409856420000016bc</UniqueId>
+				</Properties>
+			</Item>
 		</Item>
 	</Item>
 	<Item class="TimerService" referent="RBX7AA991C95C8F4527A7B24D45683E1CBB">
@@ -767,12 +907,25 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 				<Item class="LocalScript" referent="RBX383BB163603F48FB8B1483D46A25AE45">
 					<Properties>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local Roact = require(ReplicatedStorage.Packages.Roact)
+
+local Board = require(script.Parent.Components.Board.Board)
+
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GameUI"
+screenGui.Parent = playerGui
 
 Knit.Start():andThen(function()
-    print("✅ Knit Client Started")
-end):catch(warn)
-]]></ProtectedString>
+    print("Knit Client Started")
+
+    Roact.mount(Roact.createElement(Board), screenGui, "BoardHandle")
+    
+end):catch(warn)]]></ProtectedString>
 						<bool name="Disabled">false</bool>
 						<Content name="LinkedSource"><null></null></Content>
 						<token name="RunContext">0</token>
@@ -786,6 +939,153 @@ end):catch(warn)
 						<BinaryString name="Tags"></BinaryString>
 						<UniqueId name="UniqueId">725ee9f51b0abd140985642000000ab7</UniqueId>
 					</Properties>
+				</Item>
+				<Item class="Folder" referent="RBXE63668C5F5264E25B7D5CB779DAC7932">
+					<Properties>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Components</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">725ee9f51b0abd140985642000001282</UniqueId>
+					</Properties>
+					<Item class="Folder" referent="RBXA3C33F2018984FF4A5AE5F6CE6701D6F">
+						<Properties>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+							<string name="Name">Board</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+							<UniqueId name="UniqueId">725ee9f51b0abd140985642000001283</UniqueId>
+						</Properties>
+						<Item class="ModuleScript" referent="RBX0DAAAA5E03AB4C47A40C1E5EBB874B60">
+							<Properties>
+								<Content name="LinkedSource"><null></null></Content>
+								<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Roact = require(ReplicatedStorage.Packages.Roact)
+local Card = require(script.Parent.Card)
+
+local Board = Roact.Component:extend("Board")
+
+function Board:init()
+	self.state = {
+		cards = {}
+	}
+end
+
+
+function Board:didMount()
+	local BoardService = Knit.GetService("BoardService")
+	
+	-- 2. Ask for the Board Data (Async)
+	BoardService:GetBoard():andThen(function(serverBoard)
+		self:setState({
+			cards = serverBoard
+		})
+		print("Board Loaded from Server!")
+	end):catch(warn)
+end
+
+function Board:render()
+
+	local children = {}
+	
+	children.Layout = Roact.createElement("UIGridLayout", {
+		CellSize = UDim2.new(0.18, 0, 0.18, 0), -- 5 cards per row
+		CellPadding = UDim2.new(0.02, 0, 0.02, 0),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+	})
+
+	for _, cardData in ipairs(self.state.cards) do
+		children["Card_" .. cardData.Id] = Roact.createElement(Card, {
+			Word = cardData.Word,
+			Color = cardData.Color
+		})
+	end
+
+	return Roact.createElement("Frame", {
+		Size = UDim2.fromScale(0.8, 0.8),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+	}, children)
+end
+
+return Board]]></ProtectedString>
+								<string name="ScriptGuid">{4A1F6DF1-57BF-4AD0-8626-C89B8A91E919}</string>
+								<BinaryString name="AttributesSerialize"></BinaryString>
+								<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+								<bool name="DefinesCapabilities">false</bool>
+								<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+								<string name="Name">Board</string>
+								<int64 name="SourceAssetId">-1</int64>
+								<BinaryString name="Tags"></BinaryString>
+								<UniqueId name="UniqueId">725ee9f51b0abd140985642000001288</UniqueId>
+							</Properties>
+						</Item>
+						<Item class="ModuleScript" referent="RBX7EA4A61306714D05A2E4ED08075EB559">
+							<Properties>
+								<Content name="LinkedSource"><null></null></Content>
+								<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Roact = require(ReplicatedStorage.Packages.Roact)
+
+local Card = Roact.Component:extend("Card")
+
+--PALETTE
+local COLOR_MAP = {
+	Red = Color3.fromRGB(235, 87, 87),      -- Soft Red
+	Blue = Color3.fromRGB(47, 128, 237),    -- Soft Blue
+	Neutral = Color3.fromRGB(240, 230, 200),-- Beige (Sand)
+	Assassin = Color3.fromRGB(50, 50, 50),  -- Dark Grey
+}
+
+function Card:render()
+	local word = self.props.Word or "TBD"
+	local colorName = self.props.Color or "Neutral"
+	
+	local finalColor = COLOR_MAP[colorName] or COLOR_MAP.Neutral
+	
+	local textColor = Color3.new(0,0,0) -- Default Black
+	if colorName == "Assassin" then
+		textColor = Color3.new(1,1,1) -- White
+	end
+
+	return Roact.createElement("TextButton", {
+		Text = word,
+		TextSize = 14,
+		TextWrapped = true,
+		Font = Enum.Font.GothamBold,
+		
+		BackgroundColor3 = finalColor,
+		TextColor3 = textColor,
+		
+		[Roact.Ref] = self.ref,
+	}, {
+		Corner = Roact.createElement("UICorner", {
+			CornerRadius = UDim.new(0.1, 0),
+		})
+	})
+end
+
+return Card]]></ProtectedString>
+								<string name="ScriptGuid">{39453737-827C-4F49-AB2A-6F8A67C49450}</string>
+								<BinaryString name="AttributesSerialize"></BinaryString>
+								<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+								<bool name="DefinesCapabilities">false</bool>
+								<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+								<string name="Name">Card</string>
+								<int64 name="SourceAssetId">-1</int64>
+								<BinaryString name="Tags"></BinaryString>
+								<UniqueId name="UniqueId">725ee9f51b0abd140985642000001779</UniqueId>
+							</Properties>
+						</Item>
+					</Item>
 				</Item>
 			</Item>
 		</Item>
@@ -1070,40 +1370,6 @@ end):catch(warn)
 			<BinaryString name="Tags"></BinaryString>
 			<UniqueId name="UniqueId">725ee9f51b0abd140985642000000378</UniqueId>
 		</Properties>
-		<Item class="Folder" referent="1">
-			<Properties>
-				<BinaryString name="AttributesSerialize"></BinaryString>
-				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-				<bool name="DefinesCapabilities">false</bool>
-				<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
-				<string name="Name">Common</string>
-				<int64 name="SourceAssetId">-1</int64>
-				<BinaryString name="Tags"></BinaryString>
-				<UniqueId name="UniqueId">725ee9f51b0abd140985642000000390</UniqueId>
-			</Properties>
-			<Item class="ModuleScript" referent="RBXB3E7A9CE8DFB440AB32405A14E95D27C">
-				<Properties>
-					<Content name="LinkedSource"><null></null></Content>
-					<ProtectedString name="Source"><![CDATA[return {
-    "AFRICA", "AGENT", "AIR", "ALIEN", "ALPS", "AMAZON", "AMBULANCE", "AMERICA",
-    "ANGEL", "ANTARCTICA", "APPLE", "ARM", "ATLANTIS", "AUSTRALIA", "AZTEC",
-    "BACK", "BALL", "BAND", "BANK", "BAR", "BARK", "BAT", "BATTERY", "BEACH",
-    "BEAR", "BEAT", "BED", "BEIJING", "BELL", "BELT", "BERLIN", "BERMUDA",
-    "BERRY", "BILL", "BLOCK", "BOARD", "BOLT", "BOMB", "BOND", "BOOM", "BOOT",
-    "BOTTLE", "BOW", "BOX", "BRIDGE", "BRUSH", "BUCK", "BUFFALO", "BUG", "BUGLE"
-}]]></ProtectedString>
-					<string name="ScriptGuid">{1072E7A2-F312-4B5A-A4A8-78BAF589BBA4}</string>
-					<BinaryString name="AttributesSerialize"></BinaryString>
-					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-					<bool name="DefinesCapabilities">false</bool>
-					<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
-					<string name="Name">Words</string>
-					<int64 name="SourceAssetId">-1</int64>
-					<BinaryString name="Tags"></BinaryString>
-					<UniqueId name="UniqueId">725ee9f51b0abd140985642000000de6</UniqueId>
-				</Properties>
-			</Item>
-		</Item>
 		<Item class="Folder" referent="2">
 			<Properties>
 				<BinaryString name="AttributesSerialize"></BinaryString>
@@ -22674,6 +22940,40 @@ end
 				</Properties>
 			</Item>
 		</Item>
+		<Item class="Folder" referent="RBX697DB9C2F4D34D40A09F8E75A8A66AFF">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+				<string name="Name">Shared</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+				<UniqueId name="UniqueId">725ee9f51b0abd1409856420000011c8</UniqueId>
+			</Properties>
+			<Item class="ModuleScript" referent="RBXD257438026EC450F8B1AF8626347E886">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[return {
+    "AFRICA", "AGENT", "AIR", "ALIEN", "ALPS", "AMAZON", "AMBULANCE", "AMERICA",
+    "ANGEL", "ANTARCTICA", "APPLE", "ARM", "ATLANTIS", "AUSTRALIA", "AZTEC",
+    "BACK", "BALL", "BAND", "BANK", "BAR", "BARK", "BAT", "BATTERY", "BEACH",
+    "BEAR", "BEAT", "BED", "BEIJING", "BELL", "BELT", "BERLIN", "BERMUDA",
+    "BERRY", "BILL", "BLOCK", "BOARD", "BOLT", "BOMB", "BOND", "BOOM", "BOOT",
+    "BOTTLE", "BOW", "BOX", "BRIDGE", "BRUSH", "BUCK", "BUFFALO", "BUG", "BUGLE"
+}]]></ProtectedString>
+					<string name="ScriptGuid">{2284B70D-2509-4E22-833E-0DA1AB93203B}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+					<string name="Name">Words</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+					<UniqueId name="UniqueId">725ee9f51b0abd1409856420000011c9</UniqueId>
+				</Properties>
+			</Item>
+		</Item>
 	</Item>
 	<Item class="ServerScriptService" referent="137">
 		<Properties>
@@ -22700,16 +23000,19 @@ end
 			</Properties>
 			<Item class="Script" referent="RBX89EAD829C1DF4E7AA63CD89DBE5AFFFF">
 				<Properties>
-					<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+					<ProtectedString name="Source"><![CDATA[local ServerScriptService = game:GetService("ServerScriptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
--- Add Services here later
+local servicesFolder = ServerScriptService.Server.Services
+
+Knit.AddServices(servicesFolder)
 
 Knit.Start():andThen(function()
     print("Knit Server Started")
-end):catch(warn)
-
-print("Sync Works!")]]></ProtectedString>
+    print("Sync Works!")
+end):catch(warn)]]></ProtectedString>
 					<bool name="Disabled">false</bool>
 					<Content name="LinkedSource"><null></null></Content>
 					<token name="RunContext">0</token>
@@ -22811,8 +23114,6 @@ end]]></ProtectedString>
 						<Content name="LinkedSource"><null></null></Content>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
-
--- Import the word list
 local Words = require(ReplicatedStorage.Shared.Words)
 
 local BoardService = Knit.CreateService {
@@ -22820,11 +23121,12 @@ local BoardService = Knit.CreateService {
     Client = {},
 }
 
--- Shuffle Method
+-- This holds the single game board for everyone
+local currentBoard = {}
+
 local function shuffle(t)
-    local n = #t
     local newTable = table.clone(t)
-    for i = n, 2, -1 do
+    for i = #t, 2, -1 do
         local j = math.random(i)
         newTable[i], newTable[j] = newTable[j], newTable[i]
     end
@@ -22832,37 +23134,43 @@ local function shuffle(t)
 end
 
 function BoardService:GenerateBoard()
-    -- 1. Setup Colors (9 Red, 8 Blue, 7 Neutral, 1 Assassin)
     local colors = {}
     for _ = 1, 9 do table.insert(colors, "Red") end
     for _ = 1, 8 do table.insert(colors, "Blue") end
     for _ = 1, 7 do table.insert(colors, "Neutral") end
     table.insert(colors, "Assassin")
 
-    -- 2. Shuffle Colors AND Words
     local shuffledColors = shuffle(colors)
     local shuffledWords = shuffle(Words)
 
-    -- 3. Create the board
     local board = {}
     for i = 1, 25 do
         table.insert(board, {
             Id = i,
-            Word = shuffledWords[i], -- Pick the first 25 words
+            Word = shuffledWords[i],
             Color = shuffledColors[i],
-            IsRevealed = false
+            IsRevealed = false -- Hidden by default
         })
     end
-
+    
+    -- SAVE IT to the private memory
+    currentBoard = board
     return board
+end
+
+--The UI calls this to "Download" the board
+function BoardService.Client:GetBoard(player)
+    return currentBoard
+end
+
+function BoardService:KnitInit()
+    -- Generate the board immediately when the server starts
+    self:GenerateBoard()
+    print("BoardService: Initial Board Generated.")
 end
 
 function BoardService:KnitStart()
     print("BoardService Started")
-end
-
-function BoardService:KnitInit()
-    print("BoardService Initialized")
 end
 
 return BoardService]]></ProtectedString>
@@ -25155,6 +25463,21 @@ return TestSession
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 			<UniqueId name="UniqueId">725ee9f51b0abd1409856420000006eb</UniqueId>
+		</Properties>
+	</Item>
+	<Item class="ProximityPromptService" referent="RBX3D756BEE0A2C4A3D9C9C61E5723DE5E0">
+		<Properties>
+			<bool name="Enabled">true</bool>
+			<int name="MaxIndicatorsVisible">16</int>
+			<int name="MaxPromptsVisible">16</int>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+			<string name="Name">ProximityPromptService</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+			<UniqueId name="UniqueId">725ee9f51b0abd140985642000001360</UniqueId>
 		</Properties>
 	</Item>
 	<SharedStrings>
