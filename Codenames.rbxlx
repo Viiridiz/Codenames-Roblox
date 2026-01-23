@@ -220,27 +220,27 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 		<Item class="Camera" referent="RBXA0E6782A39BB4FBDB052A5FB70A391E6">
 			<Properties>
 				<CoordinateFrame name="CFrame">
-					<X>17.2097588</X>
-					<Y>123.495575</Y>
-					<Z>109.396469</Z>
-					<R00>-0.761323452</R00>
-					<R01>0.474971801</R01>
-					<R02>-0.441348493</R02>
-					<R10>-1.49011612e-08</R10>
-					<R11>0.680702269</R11>
-					<R12>0.732560277</R12>
-					<R20>0.648372293</R20>
-					<R21>0.557715297</R21>
-					<R22>-0.518234551</R22>
+					<X>10.1286888</X>
+					<Y>65.0270081</Y>
+					<Z>193.24202</Z>
+					<R00>0.400568873</R00>
+					<R01>0.515042365</R01>
+					<R02>-0.757810056</R02>
+					<R10>-0</R10>
+					<R11>0.827062786</R11>
+					<R12>0.562109649</R12>
+					<R20>0.91626668</R20>
+					<R21>-0.225163624</R21>
+					<R22>0.331295609</R22>
 				</CoordinateFrame>
 				<Ref name="CameraSubject">null</Ref>
 				<token name="CameraType">0</token>
 				<float name="FieldOfView">70</float>
 				<token name="FieldOfViewMode">0</token>
 				<CoordinateFrame name="Focus">
-					<X>18.0924683</X>
-					<Y>122.030434</Y>
-					<Z>110.432953</Z>
+					<X>11.6443586</X>
+					<Y>63.9027519</Y>
+					<Z>192.579407</Z>
 					<R00>1</R00>
 					<R01>0</R01>
 					<R02>0</R02>
@@ -797,12 +797,19 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 	</Item>
 	<Item class="PlayerEmulatorService" referent="RBX7BB9085CA6BE4CF39C7C37DAB88AC340">
 		<Properties>
-			<bool name="CustomPoliciesEnabled">false</bool>
-			<string name="EmulatedCountryCode"></string>
+			<bool name="CustomPoliciesEnabled">true</bool>
+			<string name="EmulatedCountryCode">CA</string>
 			<string name="EmulatedGameLocale"></string>
 			<bool name="PlayerEmulationEnabled">false</bool>
 			<bool name="PseudolocalizationEnabled">false</bool>
-			<BinaryString name="SerializedEmulatedPolicyInfo"></BinaryString>
+			<BinaryString name="SerializedEmulatedPolicyInfo"><![CDATA[CwAAAB0AAABBbGxvd2VkRXh0ZXJuYWxMaW5rUmVmZXJlbmNlcwcGAAAAAgcAAABEaXNjb3Jk
+AgcAAABZb3VUdWJlAgYAAABUd2l0Y2gCCAAAAEZhY2Vib29rAgEAAABYAgcAAABHdWlsZGVk
+DQAAAEFyZUFkc0FsbG93ZWQDARwAAABBcmVQYWlkUmFuZG9tSXRlbXNSZXN0cmljdGVkAwAX
+AAAASXNDb250ZW50U2hhcmluZ0FsbG93ZWQDASMAAABJc0VsaWdpYmxlVG9QdXJjaGFzZUNv
+bW1lcmNlUHJvZHVjdAMAIAAAAElzRWxpZ2libGVUb1B1cmNoYXNlU3Vic2NyaXB0aW9uAwEf
+AAAASXNFbmRsZXNzQ29udGVudEF1dG9wbGF5QWxsb3dlZAMAGwAAAElzRW5kbGVzc0NvbnRl
+bnRMb2FkQWxsb3dlZAMAGAAAAElzUGFpZEl0ZW1UcmFkaW5nQWxsb3dlZAMBFgAAAElzUGhv
+dG9Ub0F2YXRhckFsbG93ZWQDABgAAABJc1N1YmplY3RUb0NoaW5hUG9saWNpZXMDAA==]]></BinaryString>
 			<int name="TextElongationFactor">0</int>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -907,24 +914,12 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 				<Item class="LocalScript" referent="RBX383BB163603F48FB8B1483D46A25AE45">
 					<Properties>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
 local Knit = require(ReplicatedStorage.Packages.Knit)
-local Roact = require(ReplicatedStorage.Packages.Roact)
 
-local Board = require(script.Parent.Components.Board.Board)
-
-local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "GameUI"
-screenGui.Parent = playerGui
+Knit.AddControllers(script.Parent.Controllers)
 
 Knit.Start():andThen(function()
     print("Knit Client Started")
-
-    Roact.mount(Roact.createElement(Board), screenGui, "BoardHandle")
-    
 end):catch(warn)]]></ProtectedString>
 						<bool name="Disabled">false</bool>
 						<Content name="LinkedSource"><null></null></Content>
@@ -978,43 +973,134 @@ function Board:init()
 	}
 end
 
-
 function Board:didMount()
 	local BoardService = Knit.GetService("BoardService")
 	
-	-- 2. Ask for the Board Data (Async)
 	BoardService:GetBoard():andThen(function(serverBoard)
 		self:setState({
 			cards = serverBoard
 		})
-		print("Board Loaded from Server!")
+		print("BOARD LOADED. MY ROLE:", self.props.MyRole)
 	end):catch(warn)
 end
 
-function Board:render()
+local function PlayerIcon(props)
+	local color = props.Team == "Red" and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 90, 180)
+	
+	-- CHECK IF ICON REPRESENT ME
+	local isMe = (props.FullRoleName == props.MyRole)
+	
+	-- STYLE LOGIC
+	local bgTransparency = isMe and 0 or 0.8 
+	local strokeColor = isMe and Color3.new(1,1,1) or color
+	local strokeTransparency = isMe and 0 or 0.5
+	local textColor = isMe and Color3.new(1,1,1) or color
 
+	return Roact.createElement("Frame", {
+		Size = UDim2.fromScale(0.8, 0.45),
+		BackgroundColor3 = color,
+		BackgroundTransparency = bgTransparency,
+		BorderSizePixel = 0,
+	}, {
+		Stroke = Roact.createElement("UIStroke", {
+			Color = strokeColor,
+			Thickness = 2,
+			Transparency = strokeTransparency,
+		}),
+		Label = Roact.createElement("TextLabel", {
+			Text = props.RoleLabel,
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			TextColor3 = textColor,
+			Font = Enum.Font.GothamBold,
+			TextSize = 12,
+		}),
+		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+	})
+end
+
+function Board:render()
 	local children = {}
+	local myRole = self.props.MyRole or "None"
+	local showRealColors = string.find(myRole, "Spymaster") ~= nil
 	
 	children.Layout = Roact.createElement("UIGridLayout", {
-		CellSize = UDim2.new(0.18, 0, 0.18, 0), -- 5 cards per row
-		CellPadding = UDim2.new(0.02, 0, 0.02, 0),
+		CellSize = UDim2.new(0.19, 0, 0.19, 0),
+		CellPadding = UDim2.new(0.01, 0, 0.01, 0),
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 	})
 
 	for _, cardData in ipairs(self.state.cards) do
+		local displayColor = cardData.Color
+		if not showRealColors then
+			displayColor = "Neutral"
+		end
+	
 		children["Card_" .. cardData.Id] = Roact.createElement(Card, {
 			Word = cardData.Word,
-			Color = cardData.Color
+			Color = displayColor
 		})
 	end
 
 	return Roact.createElement("Frame", {
-		Size = UDim2.fromScale(0.8, 0.8),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-	}, children)
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0, 0),
+		BackgroundColor3 = Color3.fromRGB(10, 10, 10),
+		BorderSizePixel = 0,
+	}, {
+		-- LEFT FLANK
+		LeftPanel = Roact.createElement("Frame", {
+			Size = UDim2.fromScale(0.1, 0.65),
+			Position = UDim2.fromScale(0.05, 0.5),
+			AnchorPoint = Vector2.new(0, 0.5),
+			BackgroundTransparency = 1,
+		}, {
+			List = Roact.createElement("UIListLayout", { Padding = UDim.new(0.05, 0), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+			
+			P1 = Roact.createElement(PlayerIcon, { Team = "Red", RoleLabel = "SPY", FullRoleName = "RedSpymaster", MyRole = myRole }),
+			P2 = Roact.createElement(PlayerIcon, { Team = "Red", RoleLabel = "OP", FullRoleName = "RedOperative", MyRole = myRole }),
+		}),
+
+		-- BOARD
+		GameBoard = Roact.createElement("Frame", {
+			Size = UDim2.fromScale(0.6, 0.65),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			BackgroundTransparency = 1,
+		}, children),
+
+		-- RIGHT FLANK
+		RightPanel = Roact.createElement("Frame", {
+			Size = UDim2.fromScale(0.1, 0.65),
+			Position = UDim2.fromScale(0.95, 0.5),
+			AnchorPoint = Vector2.new(1, 0.5),
+			BackgroundTransparency = 1,
+		}, {
+			List = Roact.createElement("UIListLayout", { Padding = UDim.new(0.05, 0), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
+			
+			P3 = Roact.createElement(PlayerIcon, { Team = "Blue", RoleLabel = "SPY", FullRoleName = "BlueSpymaster", MyRole = myRole }),
+			P4 = Roact.createElement(PlayerIcon, { Team = "Blue", RoleLabel = "OP", FullRoleName = "BlueOperative", MyRole = myRole }),
+		}),
+
+		MenuButton = Roact.createElement("TextButton", {
+			Text = "⚙️",
+			Size = UDim2.fromScale(0.04, 0.06),
+			Position = UDim2.fromScale(0.98, 0.02), 
+			AnchorPoint = Vector2.new(1, 0),
+			BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+			TextColor3 = Color3.new(1,1,1),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			AutoButtonColor = false,
+			
+			[Roact.Event.Activated] = function()
+				if self.props.OnExit then self.props.OnExit() end
+			end
+		}, {
+			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+		})
+	})
 end
 
 return Board]]></ProtectedString>
@@ -1085,6 +1171,384 @@ return Card]]></ProtectedString>
 								<UniqueId name="UniqueId">725ee9f51b0abd140985642000001779</UniqueId>
 							</Properties>
 						</Item>
+					</Item>
+					<Item class="ModuleScript" referent="RBXB037CB4E4283493291B7171187B8FACC">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Roact = require(ReplicatedStorage.Packages.Roact)
+
+local Lobby = Roact.Component:extend("Lobby")
+
+function Lobby:init()
+	self.state = {
+		inputText = ""
+	}
+end
+
+function Lobby:render()
+	return Roact.createElement("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+	}, {
+		Container = Roact.createElement("Frame", {
+			Size = UDim2.fromScale(0.4, 0.5),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			BackgroundTransparency = 1,
+		}, {
+			Layout = Roact.createElement("UIListLayout", {
+				Padding = UDim.new(0.05, 0),
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			}),
+
+			-- TITLE
+			Title = Roact.createElement("TextLabel", {
+				Text = "CODENAMES",
+				Size = UDim2.fromScale(1, 0.3),
+				Font = Enum.Font.GothamBlack,
+				TextSize = 40,
+				TextColor3 = Color3.fromRGB(255, 255, 255),
+				BackgroundTransparency = 1,
+			}),
+
+			-- CREATE
+			CreateButton = Roact.createElement("TextButton", {
+				Text = "CREATE ROOM",
+				Size = UDim2.fromScale(1, 0.2),
+				BackgroundColor3 = Color3.fromRGB(46, 204, 113), -- Green
+				Font = Enum.Font.GothamBold,
+				TextSize = 24,
+				
+				[Roact.Event.Activated] = function()
+					self.props.OnCreate()
+				end
+			}),
+
+			-- JOIN INPUT
+			CodeInput = Roact.createElement("TextBox", {
+				PlaceholderText = "ENTER CODE",
+				Text = self.state.inputText,
+				Size = UDim2.fromScale(1, 0.2),
+				BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+				Font = Enum.Font.Gotham,
+				TextSize = 24,
+				
+				[Roact.Change.Text] = function(rbx)
+					self:setState({ inputText = rbx.Text })
+				end
+			}),
+
+			-- JOIN
+			JoinButton = Roact.createElement("TextButton", {
+				Text = "JOIN ROOM",
+				Size = UDim2.fromScale(1, 0.2),
+				BackgroundColor3 = Color3.fromRGB(52, 152, 219), -- Blue
+				Font = Enum.Font.GothamBold,
+				TextSize = 24,
+				
+				[Roact.Event.Activated] = function()
+					self.props.OnJoin(self.state.inputText)
+				end
+			})
+		})
+	})
+end
+
+return Lobby]]></ProtectedString>
+							<string name="ScriptGuid">{94543DC6-E5CB-47D3-A05B-3D92AFE38D2F}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+							<string name="Name">Lobby</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+							<UniqueId name="UniqueId">2d86b4af22c160580985801a00000aa3</UniqueId>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBXAF2E654CFA124B5B9C6FB31232881B3C">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Roact = require(ReplicatedStorage.Packages.Roact)
+local Knit = require(ReplicatedStorage.Packages.Knit)
+
+local WaitingRoom = Roact.Component:extend("WaitingRoom")
+
+function WaitingRoom:init()
+	self.state = {
+		slots = {
+			RedSpymaster = nil,
+			RedOperative = nil,
+			BlueSpymaster = nil,
+			BlueOperative = nil
+		},
+		hostName = ""
+	}
+end
+
+function WaitingRoom:didMount()
+	local RoomService = Knit.GetService("RoomService")
+	
+	self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
+		print("UI RECEIVED UPDATE:", updatedSlots, "HOST:", hostName)
+		self:setState({
+			slots = updatedSlots,
+			hostName = hostName or ""
+		})
+	end)
+end
+
+function WaitingRoom:willUnmount()
+	if self.connection then
+		self.connection:Disconnect()
+	end
+end
+
+function WaitingRoom:RenderSlotButton(role, color, position)
+	local occupantName = self.state.slots[role]
+	local isTaken = occupantName ~= nil
+	
+	local text = role
+	if isTaken then
+		text = role .. "\n" .. occupantName
+	else
+		text = role .. "\n[ OPEN ]"
+	end
+	
+	return Roact.createElement("TextButton", {
+		Text = text,
+		Size = UDim2.fromScale(0.4, 0.15),
+		Position = position,
+		BackgroundColor3 = color,
+		BackgroundTransparency = isTaken and 0.6 or 0,
+		Font = Enum.Font.GothamBold,
+		TextSize = 18,
+		TextColor3 = Color3.new(1,1,1),
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		
+		[Roact.Event.Activated] = function()
+			self.props.OnSelectSlot(role)
+		end
+	}, {
+		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) })
+	})
+end
+
+function WaitingRoom:render()
+	local myName = Players.LocalPlayer.Name
+	local amIHost = (myName == self.state.hostName)
+	
+	-- BUTTON STYLING
+	local startBtnColor = amIHost and Color3.fromRGB(40, 180, 100) or Color3.fromRGB(60, 60, 60)
+	local startBtnText = amIHost and "INITIATE" or "WAITING FOR HOST..."
+
+	return Roact.createElement("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(10, 10, 10),
+	}, {
+		Title = Roact.createElement("TextLabel", {
+			Text = "MISSION: " .. (self.props.RoomCode or "????") .. "\nHOST: " .. self.state.hostName,
+			Size = UDim2.fromScale(1, 0.15),
+			Position = UDim2.fromScale(0, 0.05),
+			Font = Enum.Font.GothamBlack,
+			TextSize = 24,
+			TextColor3 = Color3.fromRGB(200, 200, 200),
+			BackgroundTransparency = 1,
+		}),
+
+		-- RED TEAM
+		RedSpy = self:RenderSlotButton("RedSpymaster", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.3)),
+		RedOp = self:RenderSlotButton("RedOperative", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.5)),
+
+		-- BLUE TEAM (DISABLED FOR ITERATION 1)
+		BlueSpy = self:RenderSlotButton("BlueSpymaster", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.3)),
+
+		-- START BUTTON
+		StartButton = Roact.createElement("TextButton", {
+			Text = startBtnText,
+			Size = UDim2.fromScale(0.3, 0.1),
+			Position = UDim2.fromScale(0.35, 0.8),
+			BackgroundColor3 = startBtnColor,
+			Font = Enum.Font.GothamBlack,
+			TextSize = 20,
+			TextColor3 = amIHost and Color3.new(0,0,0) or Color3.fromRGB(150,150,150),
+			AutoButtonColor = false,
+			Active = amIHost, 
+			
+			[Roact.Event.Activated] = function()
+				if amIHost then
+					self.props.OnStartGame()
+				end
+			end
+		}, {
+			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+		}),
+		
+		BackButton = Roact.createElement("TextButton", {
+			Text = "ABORT",
+			Size = UDim2.fromScale(0.1, 0.05),
+			Position = UDim2.fromScale(0.88, 0.92),
+			BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+			TextColor3 = Color3.new(0.8,0.8,0.8),
+			Font = Enum.Font.GothamBold,
+			TextSize = 14,
+			AutoButtonColor = false,
+			
+			[Roact.Event.Activated] = self.props.OnLeave
+		}, {
+			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+		})
+	})
+end
+
+return WaitingRoom]]></ProtectedString>
+							<string name="ScriptGuid">{478128A1-E709-484C-8450-196B67DDDC8F}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+							<string name="Name">WaitingRoom</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+							<UniqueId name="UniqueId">2d86b4af22c160580985801a00000c12</UniqueId>
+						</Properties>
+					</Item>
+				</Item>
+				<Item class="Folder" referent="RBX97520083467A4292A79A508FF41C4154">
+					<Properties>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Controllers</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">2d86b4af22c160580985801a000009ea</UniqueId>
+					</Properties>
+					<Item class="ModuleScript" referent="RBX7B7E70244FB04EB6AAC1544EA9147651">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+local Roact = require(ReplicatedStorage.Packages.Roact)
+
+local Lobby = require(script.Parent.Parent.Components.Lobby)
+local WaitingRoom = require(script.Parent.Parent.Components.WaitingRoom)
+local Board = require(script.Parent.Parent.Components.Board.Board)
+
+local GameController = Knit.CreateController { Name = "GameController" }
+
+function GameController:KnitStart()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "GameUI"
+	screenGui.IgnoreGuiInset = true
+	screenGui.Parent = playerGui
+
+	self.ScreenGui = screenGui
+	self.CurrentRoomCode = nil
+	self.MyRole = "None" -- Track Spymaster or Operative
+	
+	-- LISTEN FOR GLOBAL GAME START
+	local RoomService = Knit.GetService("RoomService")
+	RoomService.GameStarted:Connect(function()
+		print("GAME START SIGNAL RECEIVED")
+		self:MountBoard()
+	end)
+	
+	self:MountLobby()
+end
+
+function GameController:MountLobby()
+	if self.Handle then Roact.unmount(self.Handle) end
+
+	local RoomService = Knit.GetService("RoomService")
+
+	local element = Roact.createElement(Lobby, {
+		OnCreate = function()
+			RoomService:CreateRoom():andThen(function(code)
+				print("CREATED ROOM: ", code)
+				self.CurrentRoomCode = code
+				self:MountWaitingRoom()
+			end)
+		end,
+		
+		OnJoin = function(code)
+			RoomService:JoinRoom(code):andThen(function(success)
+				if success then
+					print("JOINED ROOM")
+					self.CurrentRoomCode = code
+					self:MountWaitingRoom()
+				else
+					warn("FAILED TO JOIN ROOM")
+				end
+			end)
+		end
+	})
+
+	self.Handle = Roact.mount(element, self.ScreenGui)
+end
+
+function GameController:MountWaitingRoom()
+	if self.Handle then Roact.unmount(self.Handle) end
+	local RoomService = Knit.GetService("RoomService")
+	
+	local element = Roact.createElement(WaitingRoom, {
+		RoomCode = self.CurrentRoomCode,
+		
+		OnSelectSlot = function(slotName)
+			-- Save Role locally so the Board knows
+			self.MyRole = slotName 
+			RoomService:JoinSlot(self.CurrentRoomCode, slotName)
+		end,
+		
+		OnStartGame = function()
+			RoomService:StartGame(self.CurrentRoomCode)
+		end,
+		
+		OnLeave = function()
+			self.CurrentRoomCode = nil
+			self.MyRole = "None"
+			self:MountLobby()
+		end
+	})
+	
+	self.Handle = Roact.mount(element, self.ScreenGui)
+end
+
+function GameController:MountBoard()
+	if self.Handle then Roact.unmount(self.Handle) end
+	
+	local element = Roact.createElement(Board, {
+		MyRole = self.MyRole, 
+		OnExit = function()
+			print("RETURNING TO LOBBY")
+			self.CurrentRoomCode = nil
+			self.MyRole = "None"
+			self:MountLobby()
+		end
+	})
+
+	self.Handle = Roact.mount(element, self.ScreenGui)
+end
+
+return GameController]]></ProtectedString>
+							<string name="ScriptGuid">{9BC625A5-E529-43D0-AB3C-ECDC946FC021}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+							<string name="Name">GameController</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+							<UniqueId name="UniqueId">2d86b4af22c160580985801a000009eb</UniqueId>
+						</Properties>
 					</Item>
 				</Item>
 			</Item>
@@ -23097,6 +23561,66 @@ end]]></ProtectedString>
 						<UniqueId name="UniqueId">725ee9f51b0abd140985642000000b15</UniqueId>
 					</Properties>
 				</Item>
+				<Item class="ModuleScript" referent="RBX75C7519307CE4DD89EF625D7BC449267">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[return function()
+	local ServerScriptService = game:GetService("ServerScriptService")
+	local RoomService = require(ServerScriptService.Server.Services.RoomService)
+
+	describe("RoomService Logic", function()
+		
+		-- TEST ROOM CREATION
+		it("should create a room and return a 4-letter code", function()
+			local hostPlayer = {UserId = 1001} -- Mock Player
+			
+			local code = RoomService:CreateRoom(hostPlayer)
+			
+			expect(typeof(code)).to.equal("string")
+			expect(#code).to.equal(4) -- Code must be 4 chars
+			
+			local room = RoomService:GetRoom(code)
+			expect(room).to.be.ok()
+			expect(room.Host).to.equal(hostPlayer)
+		end)
+
+		-- TEST JOINING LOGIC
+		it("should allow a player to join an existing room", function()
+			local host = {UserId = 1001}
+			local code = RoomService:CreateRoom(host)
+			
+			-- Act: A new player tries to join
+			local joiner = {UserId = 2002}
+			local success = RoomService:JoinRoom(joiner, code)
+			
+			-- Assert: Join was successful
+			expect(success).to.equal(true)
+			
+			-- Verify player is actually in the room list
+			local room = RoomService:GetRoom(code)
+			expect(room.Players[joiner]).to.equal(true)
+		end)
+
+		-- 3. TEST INVALID CODES
+		it("should reject joining a non-existent room", function()
+			local rando = {UserId = 9999}
+			local success = RoomService:JoinRoom(rando, "FAKE")
+			
+			expect(success).to.equal(false)
+		end)
+	end)
+end]]></ProtectedString>
+						<string name="ScriptGuid">{02612E36-DB36-4427-AD0A-D64296FC4A91}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">RoomService.spec</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">2d86b4af22c160580985801a0000092c</UniqueId>
+					</Properties>
+				</Item>
 			</Item>
 			<Item class="Folder" referent="RBXE8E9872C6C1942C2854BCA2A440EF8AC">
 				<Properties>
@@ -23183,6 +23707,155 @@ return BoardService]]></ProtectedString>
 						<int64 name="SourceAssetId">-1</int64>
 						<BinaryString name="Tags"></BinaryString>
 						<UniqueId name="UniqueId">725ee9f51b0abd140985642000000b67</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX1FBEE9A5A98547719FB4996B220ACE13">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Knit = require(ReplicatedStorage.Packages.Knit)
+
+local RoomService = Knit.CreateService {
+	Name = "RoomService",
+	Client = {
+		RoomUpdate = Knit.CreateSignal(),
+		GameStarted = Knit.CreateSignal() -- NEW SIGNAL
+	},
+}
+
+local activeRooms = {}
+
+local function generateCode()
+	local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	local code = ""
+	for _ = 1, 4 do
+		local rand = math.random(1, #charset)
+		code = code .. string.sub(charset, rand, rand)
+	end
+	return code
+end
+
+local function getRoomPlayers(room)
+	local players = {}
+	for player, _ in pairs(room.Players) do
+		if typeof(player) == "Instance" and player:IsA("Player") then
+			table.insert(players, player)
+		end
+	end
+	return players
+end
+
+function RoomService:CreateRoom(hostPlayer)
+	local code = generateCode()
+	while activeRooms[code] do code = generateCode() end
+
+	local newRoom = {
+		Code = code,
+		Host = hostPlayer,
+		Players = { [hostPlayer] = true },
+		Slots = {
+			RedSpymaster = nil,
+			RedOperative = nil,
+			BlueSpymaster = nil,
+			BlueOperative = nil
+		},
+		State = "Waiting"
+	}
+
+	activeRooms[code] = newRoom
+	print("ROOM MADE: " .. code)
+	return code
+end
+
+function RoomService:JoinRoom(player, code)
+	local room = activeRooms[code]
+	if not room then return false end
+
+	room.Players[player] = true
+	print("JOINED: " .. code)
+
+	local recipients = getRoomPlayers(room)
+	if #recipients > 0 then
+		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
+	end
+
+	return true
+end
+
+function RoomService:JoinSlot(player, code, slotName)
+	local room = activeRooms[code]
+	if not room then return false end
+
+	for slot, owner in pairs(room.Slots) do
+		if owner == player.Name then room.Slots[slot] = nil end
+	end
+
+	if room.Slots[slotName] == nil then
+		room.Slots[slotName] = player.Name
+		print("SLOT TAKEN: " .. slotName)
+
+		local recipients = getRoomPlayers(room)
+		if #recipients > 0 then
+			self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
+		end
+
+		return true
+	end
+	return false
+end
+
+function RoomService:StartGame(player, code)
+	local room = activeRooms[code]
+	if not room then return false end
+	if room.Host ~= player then return false end
+
+	room.State = "Playing"
+	print("GAME STARTED: " .. code)
+	
+	-- SIGNAL TO EVERYONE TO MOVE TO BOARD
+	local recipients = getRoomPlayers(room)
+	if #recipients > 0 then
+		self.Client.GameStarted:FireFor(recipients)
+	end
+	
+	return true
+end
+
+function RoomService:GetRoom(code)
+	return activeRooms[code]
+end
+
+-- CLIENT EXPOSED METHODS
+function RoomService.Client:CreateRoom(player)
+	return self.Server:CreateRoom(player)
+end
+
+function RoomService.Client:JoinRoom(player, code)
+	return self.Server:JoinRoom(player, code)
+end
+
+function RoomService.Client:JoinSlot(player, code, slotName)
+	return self.Server:JoinSlot(player, code, slotName)
+end
+
+function RoomService.Client:StartGame(player, code)
+	return self.Server:StartGame(player, code)
+end
+
+function RoomService:KnitStart()
+	print("ROOM SERVICE STARTED")
+end
+
+return RoomService]]></ProtectedString>
+						<string name="ScriptGuid">{F029B1CF-BF7C-4681-BB42-3661781DE700}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">RoomService</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">2d86b4af22c160580985801a0000098b</UniqueId>
 					</Properties>
 				</Item>
 			</Item>
@@ -25396,7 +26069,7 @@ return TestSession
 				<G>0.5</G>
 				<B>0.5</B>
 			</Color3>
-			<float name="Brightness">1</float>
+			<float name="Brightness">1.98124921</float>
 			<Color3 name="ColorShift_Bottom">
 				<R>0</R>
 				<G>0</G>
@@ -25429,9 +26102,12 @@ return TestSession
 			<bool name="Outlines">true</bool>
 			<bool name="PrioritizeLightingQuality">false</bool>
 			<float name="ShadowSoftness">0.5</float>
-			<token name="Technology">2</token>
+			<token name="Technology">1</token>
 			<string name="TimeOfDay">14:00:00</string>
-			<BinaryString name="AttributesSerialize">AQAAACYAAABSQlhfTGlnaHRpbmdUZWNobm9sb2d5VW5pZmllZE1pZ3JhdGlvbgMB</BinaryString>
+			<BinaryString name="AttributesSerialize"><![CDATA[BQAAABQAAABSQlhfQmFja3VwQnJpZ2h0bmVzcwUAAIA/HgAAAFJCWF9CYWNrdXBFeHBvc3Vy
+ZUNvbXBlbnNhdGlvbgUAAAAAIQAAAFJCWF9MaWdodGluZ0NvbXBhdGliaWxpdHlNaWdyYXRl
+ZAMBJgAAAFJCWF9MaWdodGluZ1RlY2hub2xvZ3lVbmlmaWVkTWlncmF0aW9uAwEgAAAAUkJY
+X09yaWdpbmFsVGVjaG5vbG9neU9uRmlsZUxvYWQEAgAAAA==]]></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
 			<bool name="DefinesCapabilities">false</bool>
 			<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
@@ -25440,6 +26116,36 @@ return TestSession
 			<BinaryString name="Tags"></BinaryString>
 			<UniqueId name="UniqueId">725ee9f51b0abd1409856420000006e7</UniqueId>
 		</Properties>
+		<Item class="ColorGradingEffect" referent="RBX8752126069A54CEEBE590E94D5EB5D9F">
+			<Properties>
+				<token name="TonemapperPreset">1</token>
+				<bool name="Enabled">true</bool>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+				<string name="Name">ColorGrading</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+				<UniqueId name="UniqueId">2d86b4af22c160580985801a0000039c</UniqueId>
+			</Properties>
+		</Item>
+		<Item class="BloomEffect" referent="RBXA0FBA4C5B9F94DF791B5A50C086EBC8F">
+			<Properties>
+				<float name="Intensity">0</float>
+				<float name="Size">24</float>
+				<float name="Threshold">0.949999988</float>
+				<bool name="Enabled">true</bool>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+				<string name="Name">Bloom</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+				<UniqueId name="UniqueId">2d86b4af22c160580985801a0000039d</UniqueId>
+			</Properties>
+		</Item>
 	</Item>
 	<Item class="VideoService" referent="RBX2B02D85B986D40319261A2DE109F59DC">
 		<Properties>
