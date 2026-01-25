@@ -19,12 +19,13 @@ function GameController:KnitStart()
 
 	self.ScreenGui = screenGui
 	self.CurrentRoomCode = nil
-	self.MyRole = "None" -- Track Spymaster or Operative
+	self.MyRole = "None"
 	
-	-- LISTEN FOR GLOBAL GAME START
 	local RoomService = Knit.GetService("RoomService")
+	self.GameService = Knit.GetService("GameService")
+
 	RoomService.GameStarted:Connect(function()
-		print("GAME START SIGNAL RECEIVED")
+		print("Controller: Game Started Signal")
 		self:MountBoard()
 	end)
 	
@@ -33,31 +34,24 @@ end
 
 function GameController:MountLobby()
 	if self.Handle then Roact.unmount(self.Handle) end
-
 	local RoomService = Knit.GetService("RoomService")
 
 	local element = Roact.createElement(Lobby, {
 		OnCreate = function()
 			RoomService:CreateRoom():andThen(function(code)
-				print("CREATED ROOM: ", code)
 				self.CurrentRoomCode = code
 				self:MountWaitingRoom()
 			end)
 		end,
-		
 		OnJoin = function(code)
 			RoomService:JoinRoom(code):andThen(function(success)
 				if success then
-					print("JOINED ROOM")
 					self.CurrentRoomCode = code
 					self:MountWaitingRoom()
-				else
-					warn("FAILED TO JOIN ROOM")
 				end
 			end)
 		end
 	})
-
 	self.Handle = Roact.mount(element, self.ScreenGui)
 end
 
@@ -67,24 +61,19 @@ function GameController:MountWaitingRoom()
 	
 	local element = Roact.createElement(WaitingRoom, {
 		RoomCode = self.CurrentRoomCode,
-		
 		OnSelectSlot = function(slotName)
-			-- Save Role locally so the Board knows
 			self.MyRole = slotName 
 			RoomService:JoinSlot(self.CurrentRoomCode, slotName)
 		end,
-		
 		OnStartGame = function()
 			RoomService:StartGame(self.CurrentRoomCode)
 		end,
-		
 		OnLeave = function()
 			self.CurrentRoomCode = nil
 			self.MyRole = "None"
 			self:MountLobby()
 		end
 	})
-	
 	self.Handle = Roact.mount(element, self.ScreenGui)
 end
 
@@ -93,8 +82,17 @@ function GameController:MountBoard()
 	
 	local element = Roact.createElement(Board, {
 		MyRole = self.MyRole, 
+		
+		OnCardClick = function(cardId)
+			self.GameService:GuessWord(cardId)
+		end,
+		
+		OnGiveClue = function(word, number)
+			print("Controller: Sending Clue ->", word, number)
+			self.GameService:GiveClue(word, number)
+		end,
+
 		OnExit = function()
-			print("RETURNING TO LOBBY")
 			self.CurrentRoomCode = nil
 			self.MyRole = "None"
 			self:MountLobby()
