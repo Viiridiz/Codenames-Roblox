@@ -980,7 +980,6 @@ function Board:init()
 	self.state = {
 		cards = {},
 		currentTurn = "Waiting...",
-		-- timeRemaining removed from state!
 		score = 0,
 		currentClue = nil,
 		winner = nil, 
@@ -1010,10 +1009,8 @@ function Board:didMount()
 				GameService:GetState():andThen(function(state)
 					if not self.isActive then return end
 					
-					-- [[ FIX: Update Binding directly. NO setState for Time. ]]
 					self.setTimeText("TIME: " .. tostring(state.Time))
 
-					-- Only setState for things that actually change game flow
 					self:setState({
 						currentTurn = state.Turn,
 						score = state.Score,
@@ -1099,8 +1096,11 @@ function Board:render()
 	local isMyTurn = (myRole == currentTurn) and (self.state.winner == nil)
 
 	children.Layout = Roact.createElement("UIGridLayout", {
-		CellSize = UDim2.new(0.19, 0, 0.19, 0),
-		CellPadding = UDim2.new(0.01, 0, 0.01, 0),
+		-- [[ FIX: Spacing Overhaul ]]
+		-- Decreased CellSize to 0.18 to allow for gaps
+		CellSize = UDim2.new(0.18, 0, 0.18, 0),
+		-- Increased Padding to 0.02 for separation
+		CellPadding = UDim2.new(0.02, 0, 0.02, 0),
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 	})
@@ -1194,7 +1194,6 @@ function Board:render()
 				TextSize = 20,
 			}),
 			TimeDisp = Roact.createElement("TextLabel", {
-				-- [[ FIX: Using Binding here ]]
 				Text = self.timeText, 
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromScale(0, 0.8),
@@ -1308,7 +1307,6 @@ local Roact = require(ReplicatedStorage.Packages.Roact)
 
 local Card = Roact.PureComponent:extend("Card")
 
--- [[ 1. BRIGHTER COLORS ]] --
 local COLOR_MAP = {
 	Red = Color3.fromRGB(255, 80, 80), 
 	Blue = Color3.fromRGB(80, 160, 255), 
@@ -1317,36 +1315,63 @@ local COLOR_MAP = {
 	Unknown = Color3.fromRGB(255, 255, 255)
 }
 
+local function darken(c3, amount)
+	local h, s, v = c3:ToHSV()
+	return Color3.fromHSV(h, s, math.max(0, v - amount))
+end
+
 function Card:init()
 	self.buttonRef = Roact.createRef()
-	self.hovered = false
 	
-	-- [[ ANIMATION HELPERS ]] --
-	self.tween = function(props, time, style)
+	-- We define the animation style once here
+	local TWEEN_INFO = TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+	
+	self.tween = function(props)
 		local btn = self.buttonRef:getValue()
 		if not btn then return end
-		TweenService:Create(btn, TweenInfo.new(time, style, Enum.EasingDirection.Out), props):Play()
+		TweenService:Create(btn, TWEEN_INFO, props):Play()
 	end
 
 	self.onHoverEnter = function()
 		if self.props.IsRevealed then return end
-		self.hovered = true
-		self.tween({ Size = UDim2.fromScale(1.08, 1.08) }, 0.2, Enum.EasingStyle.Quad)
+		
+		local btn = self.buttonRef:getValue()
+		if btn then 
+			btn.ZIndex = 10 
+			
+			local currColor = btn.BackgroundColor3
+			local targetColor = darken(currColor, 0.1)
+			
+			self.tween({ 
+				-- [[ FIX: Hover Pop reduced ]]
+				-- Was 1.08, now 1.05 to prevent crowding
+				Size = UDim2.fromScale(1.05, 1.05),
+				BackgroundColor3 = targetColor
+			})
+		end
 	end
 
 	self.onHoverLeave = function()
-		self.hovered = false
-		self.tween({ Size = UDim2.fromScale(1, 1) }, 0.2, Enum.EasingStyle.Quad)
+		local btn = self.buttonRef:getValue()
+		if btn then
+			btn.ZIndex = 5 
+		
+			self.tween({ 
+				Size = UDim2.fromScale(1, 1),
+				BackgroundColor3 = self.currentBaseColor or btn.BackgroundColor3
+			})
+		end
 	end
 	
 	self.onActivate = function()
 		if self.props.OnClick and not self.props.IsRevealed then
 			local btn = self.buttonRef:getValue()
 			if btn then
-				local t = TweenService:Create(btn, TweenInfo.new(0.05), { Size = UDim2.fromScale(0.9, 0.9) })
-				t:Play()
-				t.Completed:Wait()
-				TweenService:Create(btn, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { Size = UDim2.fromScale(1, 1) }):Play()
+				local tDown = TweenService:Create(btn, TweenInfo.new(0.04), { Size = UDim2.fromScale(0.95, 0.95) })
+				tDown:Play()
+				tDown.Completed:Wait()
+				-- Bounce back to new hover size
+				TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Size = UDim2.fromScale(1.05, 1.05) }):Play()
 			end
 			self.props.OnClick(self.props.Id)
 		end
@@ -1373,45 +1398,67 @@ function Card:render()
 		end
 	end
 
+	self.currentBaseColor = displayColor
+
 	local textColor = Color3.fromRGB(50, 50, 50)
+	
+	-- White text for dark backgrounds
 	if (displayColor == COLOR_MAP.Red or displayColor == COLOR_MAP.Blue or displayColor == COLOR_MAP.Assassin) then
 		textColor = Color3.fromRGB(255, 255, 255)
 	end
-
-	return Roact.createElement("TextButton", {
-		Text = word,
-		TextSize = 15, 
-		TextWrapped = true,
-		Font = Enum.Font.GothamBlack,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
+	
+	return Roact.createElement("Frame", {
+		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = displayColor,
-		TextColor3 = textColor,
-		AutoButtonColor = false,
-		ZIndex = 5,
-		[Roact.Ref] = self.buttonRef,
-		[Roact.Event.Activated] = self.onActivate,
-		[Roact.Event.MouseEnter] = self.onHoverEnter,
-		[Roact.Event.MouseLeave] = self.onHoverLeave,
 	}, {
-		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) }),
-		Shadow = Roact.createElement("Frame", {
-			ZIndex = 4,
-			BackgroundColor3 = Color3.fromRGB(0,0,0),
-			BackgroundTransparency = 0.8,
-			Size = UDim2.new(1, 0, 1, 6),
-			Position = UDim2.new(0, 0, 0, 0),
+		Button = Roact.createElement("TextButton", {
+			Text = word,
+			TextSize = 15, 
+			TextWrapped = true,
+			Font = Enum.Font.GothamBlack,
+			
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			
+			BackgroundColor3 = displayColor,
+			TextColor3 = textColor,
+			AutoButtonColor = false,
+			ZIndex = 5,
+			
+			[Roact.Ref] = self.buttonRef,
+			[Roact.Event.Activated] = self.onActivate,
+			[Roact.Event.MouseEnter] = self.onHoverEnter,
+			[Roact.Event.MouseLeave] = self.onHoverLeave,
 		}, {
-			Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) })
-		}),
-		Darken = showDarkenOverlay and Roact.createElement("Frame", {
-			Size = UDim2.fromScale(1,1),
-			BackgroundColor3 = Color3.new(0,0,0),
-			BackgroundTransparency = 0.6,
-			ZIndex = 6,
-		}, {
-			Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) })
+			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) }),
+			
+			-- [[ FIX: Thinner Black Stroke ]]
+			Stroke = Roact.createElement("UIStroke", {
+				Color = Color3.new(0,0,0), -- Pure Black
+				Thickness = 1.5,           -- Much Thinner (was 2.5)
+				Transparency = 0.4,        -- Subtle transparency
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}),
+
+			Shadow = Roact.createElement("Frame", {
+				ZIndex = 4,
+				BackgroundColor3 = Color3.fromRGB(0,0,0),
+				BackgroundTransparency = 0.8,
+				Size = UDim2.new(1, 0, 1, 6),
+				Position = UDim2.new(0, 0, 0, 0),
+			}, {
+				Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) })
+			}),
+			
+			Darken = showDarkenOverlay and Roact.createElement("Frame", {
+				Size = UDim2.fromScale(1,1),
+				BackgroundColor3 = Color3.new(0,0,0),
+				BackgroundTransparency = 0.6,
+				ZIndex = 6,
+			}, {
+				Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) })
+			})
 		})
 	})
 end
@@ -1701,10 +1748,8 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local WaitingRoom = Roact.Component:extend("WaitingRoom")
 
--- Helper to clean up the ugly role names
 local function formatRole(roleName)
 	if not roleName then return "OPEN" end
-	-- Remove "Red" or "Blue" and uppercase it
 	return roleName:gsub("Red", ""):gsub("Blue", ""):upper()
 end
 
@@ -1742,7 +1787,6 @@ function WaitingRoom:RenderSlotButton(role, color, position, isDisabled)
 	local occupantName = self.state.slots[role]
 	local isTaken = occupantName ~= nil
 	
-	-- Use the helper here to make it look nice
 	local displayRole = formatRole(role)
 	
 	local text = displayRole

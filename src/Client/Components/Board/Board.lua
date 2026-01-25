@@ -18,7 +18,6 @@ function Board:init()
 	self.state = {
 		cards = {},
 		currentTurn = "Waiting...",
-		-- timeRemaining removed from state!
 		score = 0,
 		currentClue = nil,
 		winner = nil, 
@@ -50,7 +49,6 @@ function Board:didMount()
 					
 					self.setTimeText("TIME: " .. tostring(state.Time))
 
-					-- Only setState for things that actually change game flow
 					self:setState({
 						currentTurn = state.Turn,
 						score = state.Score,
@@ -136,8 +134,11 @@ function Board:render()
 	local isMyTurn = (myRole == currentTurn) and (self.state.winner == nil)
 
 	children.Layout = Roact.createElement("UIGridLayout", {
-		CellSize = UDim2.new(0.19, 0, 0.19, 0),
-		CellPadding = UDim2.new(0.01, 0, 0.01, 0),
+		-- [[ FIX: Spacing Overhaul ]]
+		-- Decreased CellSize to 0.18 to allow for gaps
+		CellSize = UDim2.new(0.18, 0, 0.18, 0),
+		-- Increased Padding to 0.02 for separation
+		CellPadding = UDim2.new(0.02, 0, 0.02, 0),
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 	})
@@ -231,7 +232,6 @@ function Board:render()
 				TextSize = 20,
 			}),
 			TimeDisp = Roact.createElement("TextLabel", {
-				-- [[ FIX: Using Binding here ]]
 				Text = self.timeText, 
 				AutomaticSize = Enum.AutomaticSize.X,
 				Size = UDim2.fromScale(0, 0.8),
