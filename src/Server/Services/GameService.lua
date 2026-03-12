@@ -39,9 +39,6 @@ function DataStore:Save_Round_State(gr) self.ActiveRound = gr end
 
 function GameService:KnitStart() end
 
--- ==========================================
--- SYSTEM HELPERS & DISPLAY CALLS
--- ==========================================
 function GameService:Display_message(player, msg) 
     if player then
         self.Client.ErrorMessage:Fire(player, msg)

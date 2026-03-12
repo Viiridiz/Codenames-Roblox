@@ -1,6 +1,5 @@
 local Dictionary = {}
 
--- Your massive list of words goes here
 local WordList = {
     "AFRICA", "AGENT", "AIR", "ALIEN", "ALPS", "AMAZON", "AMBULANCE", "AMERICA",
     "ANGEL", "ANTARCTICA", "APPLE", "ARM", "ATLANTIS", "AUSTRALIA", "AZTEC",
