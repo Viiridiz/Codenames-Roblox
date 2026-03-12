@@ -1,124 +1,149 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
+local RoomModel = require(ReplicatedStorage.Shared.Models.Room)
+local PlayerModel = require(ReplicatedStorage.Shared.Models.Player)
+
+local TeamEnum = require(ReplicatedStorage.Shared.Enums.Team)
+local RoleEnum = require(ReplicatedStorage.Shared.Enums.Role)
+
 local RoomService = Knit.CreateService {
-	Name = "RoomService",
-	Client = {
-		RoomUpdate = Knit.CreateSignal(),
-		GameStarted = Knit.CreateSignal()
-	},
+    Name = "RoomService",
+    Client = {
+        RoomUpdate = Knit.CreateSignal(),
+        GameStarted = Knit.CreateSignal()
+    },
 }
 
-local activeRooms = {}
+local DataStore = {
+    ActiveRooms = {}
+}
 
-local function generateCode()
-	local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	local code = ""
-	for _ = 1, 4 do
-		local rand = math.random(1, #charset)
-		code = code .. string.sub(charset, rand, rand)
-	end
-	return code
+function DataStore:Check_Player_Status(player) return false end
+function DataStore:Check_Code(code) return self.ActiveRooms[code] ~= nil end
+function DataStore:Save_Room(room) self.ActiveRooms[room.Code] = room end
+function DataStore:Get_Room(code) return self.ActiveRooms[code] end
+function DataStore:Update_Room(room) self.ActiveRooms[room.Code] = room end
+
+function RoomService:Generate_4_Digit_Code()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local code = ""
+    for _ = 1, 4 do
+        local rand = math.random(1, #charset)
+        code = code .. string.sub(charset, rand, rand)
+    end
+    return code
 end
 
-local function getRoomPlayers(room)
-	local players = {}
-	for player, _ in pairs(room.Players) do
-		if typeof(player) == "Instance" and player:IsA("Player") then
-			table.insert(players, player)
-		end
-	end
-	return players
+function RoomService:Display_message(msg) warn(msg) end
+
+function RoomService:Display_Lobby(room)
+    local slots = {}
+    for _, p in ipairs(room.Players) do
+        if p.Team and p.Role and p.Team ~= "None" and p.Role ~= "None" then
+            slots[p.Team .. p.Role] = p.UserName
+        end
+    end
+    
+    for _, p in ipairs(room.Players) do
+        local playerInstance = Players:GetPlayerByUserId(tonumber(p.UserId))
+        if playerInstance then
+            self.Client.RoomUpdate:Fire(playerInstance, slots, room.HostName)
+        end
+    end
 end
 
-function RoomService:CreateRoom(hostPlayer)
-	local code = generateCode()
-	while activeRooms[code] do code = generateCode() end
+-- US-1.1: Create Room
+function RoomService:CreateRoom(hostPlayer, difficulty, wordPack)
+    local inRoom = DataStore:Check_Player_Status(hostPlayer)
+    if inRoom then return nil end
 
-	local newRoom = {
-		Code = code,
-		Host = hostPlayer,
-		Players = { [hostPlayer] = true },
-		Slots = {
-			RedSpymaster = nil, RedOperative = nil,
-			BlueSpymaster = nil, BlueOperative = nil
-		},
-		State = "Waiting"
-	}
+    local code = self:Generate_4_Digit_Code()
+    while DataStore:Check_Code(code) do
+        code = self:Generate_4_Digit_Code()
+    end
 
-	activeRooms[code] = newRoom
-	print("ROOM MADE: " .. code)
-	return code
+    local r = RoomModel.new(code, difficulty, wordPack)
+    r:Set_State("Lobby")
+    r:Set_Host(hostPlayer)
+    
+    local hostModel = PlayerModel.new(hostPlayer, "None", "None")
+    r:Add_Member(hostModel)
+
+    DataStore:Save_Room(r)
+    self:Display_Lobby(r)
+    
+    return code
 end
 
-function RoomService:JoinRoom(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
-	room.Players[player] = true
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-	end
-	return true
+-- US-1.2: Join Room
+function RoomService:JoinRoom(player, code, team, role)
+    local r = DataStore:Get_Room(code)
+    if r == nil then return false end
+
+    local userIdStr = tostring(player.UserId)
+
+    if team and role and team ~= "None" and role ~= "None" then
+        for _, p in ipairs(r.Players) do
+            if p.UserId ~= userIdStr and p.Team == team and p.Role == role then
+                self:Display_message("Error: Slot already taken")
+                return false
+            end
+        end
+    end
+
+    local existingPlayerModel = nil
+    for _, p in ipairs(r.Players) do
+        if p.UserId == userIdStr then
+            existingPlayerModel = p
+            break
+        end
+    end
+
+    if existingPlayerModel then
+        if existingPlayerModel.Team == team and existingPlayerModel.Role == role and team ~= "None" then
+            r:Assign_Team(existingPlayerModel, "None")
+            r:Assign_Role(existingPlayerModel, "None")
+        else
+            r:Assign_Team(existingPlayerModel, team)
+            r:Assign_Role(existingPlayerModel, role)
+        end
+        r:Update_Player_List(existingPlayerModel)
+    else
+        if r:Get_Player_Count() >= 4 then return false end
+        local pModel = PlayerModel.new(player, team, role)
+        r:Add_Member(pModel)
+    end
+
+    DataStore:Update_Room(r)
+    self:Display_Lobby(r)
+    
+    return true
 end
 
-function RoomService:JoinSlot(player, code, slotName)
-	local room = activeRooms[code]
-	if not room then return false end
-
-	if room.Slots[slotName] == player.Name then
-		room.Slots[slotName] = nil
-	else
-		for slot, owner in pairs(room.Slots) do
-			if owner == player.Name then room.Slots[slot] = nil end
-		end
-		if room.Slots[slotName] == nil then
-			room.Slots[slotName] = player.Name
-		end
-	end
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-	end
-	return true
+function RoomService:LeaveRoom(player, code)
+    local r = DataStore:Get_Room(code)
+    if not r then return false end
+    
+    local userIdStr = tostring(player.UserId)
+    for i, p in ipairs(r.Players) do
+        if p.UserId == userIdStr then
+            table.remove(r.Players, i)
+            break
+        end
+    end
+    
+    DataStore:Update_Room(r)
+    self:Display_Lobby(r)
+    return true
 end
 
-function RoomService:StartGame(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
-	if room.Host ~= player then return false end
-
-	room.State = "Playing"
-	print("RoomService: STARTING GAME...")
-	
-	-- [[ CRITICAL: WAKE UP GAMESERVICE ]] --
-	local GameService = Knit.GetService("GameService")
-	if GameService then
-		print("RoomService: Calling GameService:StartGame()")
-		GameService:StartGame() 
-	else
-		warn("RoomService: GameService NOT FOUND")
-	end
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.GameStarted:FireFor(recipients)
-	end
-	
-	return true
-end
-
--- [[ FIX: EXPLICITLY DEFINE GETROOM FOR TESTS ]] --
-function RoomService:GetRoom(code)
-	return activeRooms[code]
-end
+function RoomService:GetRoom(code) return DataStore:Get_Room(code) end
 
 -- CLIENT METHODS
-function RoomService.Client:CreateRoom(player) return self.Server:CreateRoom(player) end
-function RoomService.Client:JoinRoom(player, code) return self.Server:JoinRoom(player, code) end
-function RoomService.Client:JoinSlot(player, code, slot) return self.Server:JoinSlot(player, code, slot) end
-function RoomService.Client:StartGame(player, code) return self.Server:StartGame(player, code) end
+function RoomService.Client:CreateRoom(player, diff, pack) return self.Server:CreateRoom(player, diff, pack) end
+function RoomService.Client:JoinRoom(player, code, t, r) return self.Server:JoinRoom(player, code, t, r) end
+function RoomService.Client:LeaveRoom(player, code) return self.Server:LeaveRoom(player, code) end
 
 return RoomService

@@ -1,159 +1,262 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local TURN_DURATION = 60
-local ROLES = {
-	SPYMASTER = "RedSpymaster",
-	OPERATIVE = "RedOperative",
-}
+local GameRoundModel = require(ReplicatedStorage.Shared.Models.GameRound)
+local BoardModel = require(ReplicatedStorage.Shared.Models.Board) 
+local Dictionary = require(ReplicatedStorage.Shared.Words) 
+local TeamEnum = require(ReplicatedStorage.Shared.Enums.Team)
+local ColorEnum = require(ReplicatedStorage.Shared.Enums.Color)
+local RoleEnum = require(ReplicatedStorage.Shared.Enums.Role)
 
 local GameService = Knit.CreateService({
-	Name = "GameService",
-	Client = {
-		TurnChanged = Knit.CreateSignal(),
-		TimerUpdate = Knit.CreateSignal(),
-		ScoreUpdate = Knit.CreateSignal(),
-		ClueGiven = Knit.CreateSignal(),
-		GameOver = Knit.CreateSignal(),
-		
-		-- [[ 1. GET STATE ]] --
-		GetState = function(self, player)
-			local server = self.Server
-			return {
-				Turn = server.CurrentTurn,
-				Time = math.ceil(server.TimeRemaining or 0),
-				Score = server.Score or 0,
-				Clue = server.CurrentClue,
-				Winner = server.Winner -- Send winner if game is over
-			}
-		end,
-
-		GiveClue = function(self, player, word, number)
-			local server = self.Server
-			if server.Winner then return end -- No clues if game over
-
-			if not server.IsGameRunning then server:StartGame() end
-			if server.CurrentTurn ~= ROLES.SPYMASTER then return end
-
-			server.CurrentClue = { Word = word, Number = number }
-			server.Client.ClueGiven:FireAll(word, number)
-			server:SetTurn(ROLES.OPERATIVE)
-		end,
-
-		-- [[ 3. GUESS WORD ]] --
-		GuessWord = function(self, player, cardId)
-			local server = self.Server
-			if server.Winner then return end -- No guessing if game over
-			if server.CurrentTurn ~= ROLES.OPERATIVE then return end
-
-			local revealedColor = server.BoardService:RevealCard(cardId)
-			if not revealedColor then return end 
-
-			-- [[ WIN/LOSS LOGIC ]] --
-			if revealedColor == "Assassin" then
-				-- Instant Loss: If Red hits it, Blue Wins
-				server:EndGame("Blue")
-				return
-			
-			elseif revealedColor == "Red" then
-				server.Score += 1
-				server.CurrentGuesses += 1
-				server.CardsLeft.Red -= 1
-				server.Client.ScoreUpdate:FireAll(server.Score)
-				
-				if server.CardsLeft.Red <= 0 then
-					server:EndGame("Red")
-					return
-				end
-				
-			elseif revealedColor == "Blue" then
-				-- Hit Enemy Card -> Turn Ends
-				server.CardsLeft.Blue -= 1
-				if server.CardsLeft.Blue <= 0 then
-					server:EndGame("Blue")
-					return
-				end
-				server:SetTurn(ROLES.SPYMASTER)
-				
-			elseif revealedColor == "Neutral" then
-				-- Hit Civilian -> Turn Ends
-				server:SetTurn(ROLES.SPYMASTER)
-			end
-		end
-	},
+    Name = "GameService",
+    Client = {
+        GameStarted = Knit.CreateSignal(),
+        TurnChanged = Knit.CreateSignal(),
+        TimerUpdate = Knit.CreateSignal(),
+        ScoreUpdate = Knit.CreateSignal(),
+        ClueGiven = Knit.CreateSignal(),
+        GameOver = Knit.CreateSignal(),
+        CardColorDisplayed = Knit.CreateSignal(),
+        SecretBoardData = Knit.CreateSignal(),
+        LogsUpdated = Knit.CreateSignal(),
+        ErrorMessage = Knit.CreateSignal(), 
+    },
 })
 
-function GameService:KnitInit()
-	self.CurrentTurn = nil
-	self.TimeRemaining = 0
-	self.Score = 0
-	self.IsGameRunning = false
-	self.Winner = nil
-	self.CurrentGuesses = 0
-	self.CurrentClue = { Word = "", Number = 0 }
-	self.CardsLeft = { Red = 9, Blue = 8 } -- Standard Codenames counts
-	
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			if self.IsGameRunning and self.TimeRemaining > 0 and not self.Winner then
-				self.TimeRemaining = self.TimeRemaining - 1
-				self.Client.TimerUpdate:FireAll(self.TimeRemaining)
-				if self.TimeRemaining <= 0 then self:HandleTimeout() end
-			end
-		end
-	end)
+local DataStore = {
+    ActiveRound = nil,
+    ActiveBoard = nil
+}
+
+function DataStore:Get_Room(code) return Knit.GetService("RoomService"):GetRoom(code) end
+function DataStore:Save_Game_State(r, gr, b) self.ActiveRound = gr; self.ActiveBoard = b end
+function DataStore:Get_Active_Round() return self.ActiveRound end
+function DataStore:Get_Active_Board() return self.ActiveBoard end
+function DataStore:Get_Room_State(roomId) return self.ActiveRound end
+function DataStore:Save_State(gr, b) self.ActiveRound = gr; self.ActiveBoard = b end
+function DataStore:Save_Round_State(gr) self.ActiveRound = gr end
+
+function GameService:KnitStart() end
+
+-- ==========================================
+-- SYSTEM HELPERS & DISPLAY CALLS
+-- ==========================================
+function GameService:Display_message(player, msg) 
+    if player then
+        self.Client.ErrorMessage:Fire(player, msg)
+    else
+        warn(msg) 
+    end
 end
 
-function GameService:KnitStart()
-	self.BoardService = Knit.GetService("BoardService")
+function GameService:Display_Board(b) print("Board UI Update") end
+
+function GameService:Display_CardColor(cardId, color) 
+    self.Client.CardColorDisplayed:FireAll(cardId, color) 
 end
 
-function GameService:StartGame()
-	print("GameService: STARTING FRESH GAME")
-	self.IsGameRunning = true
-	self.Winner = nil
-	self.Score = 0
-	self.CardsLeft = { Red = 9, Blue = 8 }
-	
-	self.BoardService:GenerateBoard()
-	
-	self.CurrentClue = { Word = "", Number = 0 }
-	self.Client.ClueGiven:FireAll("", 0)
-	
-	-- Notify clients to clear Game Over screens
-	self.Client.GameOver:FireAll(nil) 
-	
-	self:SetTurn(ROLES.SPYMASTER)
+function GameService:Display_TimerUpdate(gr) self.Client.TimerUpdate:FireAll(gr.TurnTimer) end
+function GameService:Display_SecretBoard(data) self.Client.SecretBoardData:FireAll(data) end
+function GameService:Display_Logs() self.Client.LogsUpdated:FireAll() end
+
+function GameService:Display_TurnUpdate(gr)
+    self.Client.TurnChanged:FireAll(gr:Get_Turn_String())
 end
 
-function GameService:EndGame(winningTeam)
-	print("GAME OVER! Winner:", winningTeam)
-	self.Winner = winningTeam
-	self.IsGameRunning = false
-	self.Client.GameOver:FireAll(winningTeam)
+function GameService:Display_ScoreUpdate(gr)
+    self.Client.ScoreUpdate:FireAll(gr.ScoreRed, gr.ScoreBlue)
 end
 
-function GameService:SetTurn(role)
-	self.CurrentTurn = role
-	self.TimeRemaining = TURN_DURATION
-	self.CurrentGuesses = 0 
-	self.Client.TurnChanged:FireAll(role)
-	self.Client.ScoreUpdate:FireAll(self.Score)
-	
-	if role == ROLES.SPYMASTER then
-		self.CurrentClue = { Word = "", Number = 0 }
-		self.Client.ClueGiven:FireAll("", 0)
-	end
+function GameService:Cancel_Timer(roomId) print("Timer Cancelled") end
+function GameService:Reset_Turn_Timer(gr) gr.TurnTimer = 60 end
+function GameService:Lock_Spymaster_Input(player) print("Locked input for", player) end
+
+function GameService:Check_String_Format(word)
+    return not string.find(word, " ")
 end
 
-function GameService:HandleTimeout()
-	if self.Winner then return end
-	if self.CurrentTurn == ROLES.SPYMASTER then
-		self:SetTurn(ROLES.OPERATIVE)
-	else
-		self:SetTurn(ROLES.SPYMASTER)
-	end
+
+-- ==========================================
+-- US-2.1 / 2.2: Start Game
+-- ==========================================
+function GameService.Client:StartGame(player, code)
+    local selfServer = self.Server
+    
+    local r = DataStore:Get_Room(code)
+    if r == nil then
+        selfServer:Display_message(player, "Error: Room not found")
+        return false
+    end
+    
+    local isHost = r:Check_Host(player)
+    if isHost == false then
+        selfServer:Display_message(player, "Error: Only the Host can start")
+        return false
+    end
+    
+    local count = r:Get_Player_Count()
+    if count < 2 or count > 4 then
+        selfServer:Display_message(player, "Error: Need 2-4 players")
+        return false
+    end
+    
+    r:Set_State("Playing")
+    
+    local gr = GameRoundModel.new()
+    gr:Associate_Room(r)
+    
+    local words = Dictionary:Get_Random_Words(25)
+    local b = BoardModel.new(gr, words)
+    b:Generate_Cards(words)
+    b:Assign_Colors(9, 8, 7, 1)
+    
+    DataStore:Save_Game_State(r, gr, b)
+    
+    selfServer:Display_Board(b)
+    self.GameStarted:FireAll() 
+    
+    selfServer:Display_TurnUpdate(gr)
+    selfServer:Display_ScoreUpdate(gr)
+    
+    task.spawn(function()
+        while gr and gr.State ~= "GameOver" do
+            task.wait(1)
+            gr.TurnTimer = gr.TurnTimer - 1
+            if gr.TurnTimer <= 0 then
+                selfServer:TriggerTimeExpired(code)
+            else
+                selfServer:Display_TimerUpdate(gr)
+            end
+        end
+    end)
+    
+    return true
+end
+
+
+-- ==========================================
+-- US-3.2: Request Secret Board 
+-- ==========================================
+function GameService.Client:RequestSecretBoard(player)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    
+    if gr == nil or gr.State == "GameOver" then
+        selfServer:Display_message(player, "Error: Game is not active")
+        return
+    end
+
+    local b = DataStore:Get_Active_Board()
+    if not b then return end
+    
+    local secretBoardData = b:Get_Secret_Board_Data()
+    self.SecretBoardData:Fire(player, secretBoardData)
+end
+
+
+-- ==========================================
+-- US-4.1: Select Card 
+-- ==========================================
+function GameService.Client:SelectCard(player, cardId)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    local validTurn = gr:Validate_Operative_Turn(player)
+    
+    if validTurn == false or gr.State ~= "Guessing Phase" then
+        selfServer:Display_message(player, "Error: Not your active turn")
+        return
+    end
+    
+    local b = DataStore:Get_Active_Board()
+    local c = b:Get_Card(cardId)
+    local revealed = c:Get_IsRevealed()
+    
+    if revealed == true then
+        selfServer:Display_message(player, "Error: Card already revealed")
+        return
+    end
+    
+    c:Set_IsRevealed(true)
+    local color = c:Get_RealColor()
+    
+    if color == ColorEnum.BLACK then
+        gr:Set_State("GameOver")
+        local opposingTeam = (gr.CurrentTurn == TeamEnum.RED) and TeamEnum.BLUE or TeamEnum.RED
+        gr:Set_Winner(opposingTeam)
+        self.GameOver:FireAll(tostring(opposingTeam))
+    elseif color == gr.CurrentTurn then
+        gr:Increment_Score()
+        selfServer:Display_ScoreUpdate(gr)
+    else 
+        gr:Switch_Turn()
+        gr:Set_State("Clue Phase")
+        selfServer:Reset_Turn_Timer(gr)
+        selfServer:Display_TurnUpdate(gr)
+    end
+    
+    DataStore:Save_State(gr, b)
+    selfServer:Display_CardColor(cardId, color)
+end
+
+
+-- ==========================================
+-- US-4.3: Submit Clue
+-- ==========================================
+function GameService.Client:SubmitClue(player, word, number)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    
+    local validTurn = gr:Validate_Spymaster_Turn(player)
+    if validTurn == false or gr.State ~= "Clue Phase" then
+        selfServer:Display_message(player, "Error: Not your turn to give a clue")
+        return
+    end
+
+    local formatValid = selfServer:Check_String_Format(word)
+    if formatValid == false then
+        selfServer:Display_message(player, "Error: Clue must be a single word (no spaces)")
+        return
+    end
+
+    local b = DataStore:Get_Active_Board()
+    local isCheating = b:Check_Word_Conflict(word)
+    if isCheating == true then
+        selfServer:Display_message(player, "Error: Illegal Clue - Word is on the board")
+        return
+    end
+
+    gr:Append_ClueLog(word, number)
+    gr:Set_State("Guessing Phase")
+    gr.ActiveRole = RoleEnum.OPERATIVE
+
+    selfServer:Lock_Spymaster_Input(player)
+    selfServer:Reset_Turn_Timer(gr)
+    DataStore:Save_Round_State(gr)
+    
+    selfServer:Display_TurnUpdate(gr)
+    selfServer:Display_Logs()
+    self.ClueGiven:FireAll(word, number)
+end
+
+
+-- ==========================================
+-- US-4.2: Timer System
+-- ==========================================
+function GameService:TriggerTimeExpired(roomId)
+    local gr = DataStore:Get_Room_State(roomId)
+    if gr == nil or gr.State == "GameOver" then
+        self:Cancel_Timer(roomId)
+        return
+    end
+
+    gr:Switch_Turn()
+    gr:Set_State("Clue Phase")
+    self:Reset_Turn_Timer(gr)
+    DataStore:Save_Round_State(gr)
+    
+    self:Display_TurnUpdate(gr)
+    self:Display_TimerUpdate(gr)
 end
 
 return GameService

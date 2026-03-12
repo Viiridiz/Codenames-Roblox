@@ -5,11 +5,11 @@ local Roact = require(ReplicatedStorage.Packages.Roact)
 local Card = Roact.PureComponent:extend("Card")
 
 local COLOR_MAP = {
-	Red = Color3.fromRGB(255, 80, 80), 
-	Blue = Color3.fromRGB(80, 160, 255), 
-	Neutral = Color3.fromRGB(245, 235, 215), 
-	Assassin = Color3.fromRGB(30, 30, 30), 
-	Unknown = Color3.fromRGB(255, 255, 255)
+    Red = Color3.fromRGB(255, 80, 80), 
+    Blue = Color3.fromRGB(80, 160, 255), 
+    Beige = Color3.fromRGB(245, 235, 215), 
+    Black = Color3.fromRGB(30, 30, 30),  
+    Unknown = Color3.fromRGB(255, 255, 255)
 }
 
 local function darken(c3, amount)
@@ -19,8 +19,7 @@ end
 
 function Card:init()
 	self.buttonRef = Roact.createRef()
-	
-	-- We define the animation style once here
+
 	local TWEEN_INFO = TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 	
 	self.tween = function(props)
@@ -40,8 +39,7 @@ function Card:init()
 			local targetColor = darken(currColor, 0.1)
 			
 			self.tween({ 
-				-- [[ FIX: Hover Pop reduced ]]
-				-- Was 1.08, now 1.05 to prevent crowding
+
 				Size = UDim2.fromScale(1.05, 1.05),
 				BackgroundColor3 = targetColor
 			})
@@ -67,7 +65,6 @@ function Card:init()
 				local tDown = TweenService:Create(btn, TweenInfo.new(0.04), { Size = UDim2.fromScale(0.95, 0.95) })
 				tDown:Play()
 				tDown.Completed:Wait()
-				-- Bounce back to new hover size
 				TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Size = UDim2.fromScale(1.05, 1.05) }):Play()
 			end
 			self.props.OnClick(self.props.Id)
@@ -98,8 +95,7 @@ function Card:render()
 	self.currentBaseColor = displayColor
 
 	local textColor = Color3.fromRGB(50, 50, 50)
-	
-	-- White text for dark backgrounds
+
 	if (displayColor == COLOR_MAP.Red or displayColor == COLOR_MAP.Blue or displayColor == COLOR_MAP.Assassin) then
 		textColor = Color3.fromRGB(255, 255, 255)
 	end
@@ -129,12 +125,11 @@ function Card:render()
 			[Roact.Event.MouseLeave] = self.onHoverLeave,
 		}, {
 			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) }),
-			
-			-- [[ FIX: Thinner Black Stroke ]]
+	
 			Stroke = Roact.createElement("UIStroke", {
-				Color = Color3.new(0,0,0), -- Pure Black
-				Thickness = 1.5,           -- Much Thinner (was 2.5)
-				Transparency = 0.4,        -- Subtle transparency
+				Color = Color3.new(0,0,0), 
+				Thickness = 1.5,           
+				Transparency = 0.4,      
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			}),
 

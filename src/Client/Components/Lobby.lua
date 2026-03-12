@@ -7,7 +7,7 @@ local Lobby = Roact.Component:extend("Lobby")
 function Lobby:init()
 	self.state = {
 		inputText = "",
-		errorMessage = nil -- Store error text here
+		errorMessage = nil 
 	}
 end
 

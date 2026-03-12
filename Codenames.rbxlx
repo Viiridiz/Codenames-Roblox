@@ -12,6 +12,7 @@
 			<BinaryString name="CollisionGroupData">AQEABP////8HRGVmYXVsdA==</BinaryString>
 			<Ref name="CurrentCamera">RBXA0E6782A39BB4FBDB052A5FB70A391E6</Ref>
 			<double name="DistributedGameTime">0</double>
+			<token name="EnableSLIMAvatars">0</token>
 			<bool name="ExplicitAutoJoints">true</bool>
 			<bool name="FallHeightEnabled">true</bool>
 			<float name="FallenPartsDestroyHeight">-500</float>
@@ -23,6 +24,7 @@
 			</Vector3>
 			<float name="Gravity">196.199997</float>
 			<token name="IKControlConstraintSupport">0</token>
+			<token name="LayeredClothingCacheOptimizations">0</token>
 			<token name="LuauTypeCheckMode">0</token>
 			<token name="MeshPartHeadsAndAccessories">0</token>
 			<token name="ModelStreamingBehavior">0</token>
@@ -378,6 +380,7 @@ gcLgc4RKxr21zq2UlJSM]]></BinaryString>
 					</Color3>
 					<Content name="MetalnessMap"><null></null></Content>
 					<Content name="NormalMap"><null></null></Content>
+					<float name="Rotation">0</float>
 					<Content name="RoughnessMap"><null></null></Content>
 					<Content name="Texture"><url>rbxasset://textures/SpawnLocation.png</url></Content>
 					<Content name="TexturePack"><null></null></Content>
@@ -969,321 +972,180 @@ local ClueInput = require(script.Parent.ClueInput)
 local Board = Roact.Component:extend("Board")
 
 local function formatRole(roleStr)
-	if not roleStr then return "..." end
-	roleStr = roleStr:gsub("Spymaster", " SPY"):gsub("Operative", " OP")
-	return roleStr:upper()
+    if not roleStr then return "..." end
+    roleStr = roleStr:gsub("Spymaster", " SPY"):gsub("Operative", " OP")
+    return roleStr:upper()
 end
 
 function Board:init()
-	self.timeText, self.setTimeText = Roact.createBinding("TIME: --")
+    self.timeText, self.setTimeText = Roact.createBinding("TIME: --")
 
-	self.state = {
-		cards = {},
-		currentTurn = "Waiting...",
-		score = 0,
-		currentClue = nil,
-		winner = nil, 
-	}
-	self.isActive = true
+    self.state = {
+        cards = {},
+        currentTurn = "Waiting...",
+        score = "0 - 0",
+        currentClue = nil,
+        winner = nil, 
+        errorMessage = nil, 
+    }
+    self.isActive = true
 end
 
 function Board:didMount()
-	local BoardService = Knit.GetService("BoardService")
-	local GameService = Knit.GetService("GameService")
+    local GameService = Knit.GetService("GameService")
 
-	local function updateBoard()
-		if not self.isActive then return end
-		BoardService:GetBoard():andThen(function(serverBoard)
-			if not self.isActive then return end
-			self:setState({ cards = serverBoard })
-		end)
-	end
+    GameService:RequestSecretBoard()
 
-	-- 1. Initial Load
-	updateBoard()
+    self.errorConn = GameService.ErrorMessage:Connect(function(msg)
+        self:setState({ errorMessage = msg })
+        task.delay(3, function()
+            if self.isActive then
+                self:setState({ errorMessage = Roact.None })
+            end
+        end)
+    end)
 
-	-- 2. SYNC LOOP
-	task.spawn(function()
-		while self.isActive do
-			if GameService.GetState then
-				GameService:GetState():andThen(function(state)
-					if not self.isActive then return end
-					
-					self.setTimeText("TIME: " .. tostring(state.Time))
+    self.turnConn = GameService.TurnChanged:Connect(function(turnString)
+        self:setState({ currentTurn = turnString })
+    end)
 
-					self:setState({
-						currentTurn = state.Turn,
-						score = state.Score,
-						currentClue = state.Clue,
-						winner = state.Winner
-					})
-				end):catch(function() end)
-			end
-			task.wait(1)
-		end
-	end)
+    self.scoreConn = GameService.ScoreUpdate:Connect(function(scoreRed, scoreBlue)
+        self:setState({ score = tostring(scoreRed) .. " - " .. tostring(scoreBlue) })
+    end)
 
-	-- 3. LISTENERS
-	if BoardService.CardRevealed then
-		self.revealConn = BoardService.CardRevealed:Connect(function(cardId, newColor)
-			self:setState(function(prevState)
-				local newCards = table.clone(prevState.cards)
-				for i, card in ipairs(newCards) do
-					if card.Id == cardId then
-						local updated = table.clone(card)
-						updated.IsRevealed = true
-						updated.Color = newColor 
-						newCards[i] = updated
-						break
-					end
-				end
-				return { cards = newCards }
-			end)
-		end)
-	end
+    self.timerConn = GameService.TimerUpdate:Connect(function(timeRemaining)
+        self.setTimeText("TIME: " .. tostring(timeRemaining))
+    end)
 
-	if GameService.GameOver then
-		self.gameOverConn = GameService.GameOver:Connect(function(winner)
-			self:setState({ winner = winner })
-		end)
-	end
+    self.clueConn = GameService.ClueGiven:Connect(function(word, number)
+        self:setState({ currentClue = {Word = word, Number = number} })
+    end)
+
+    self.revealConn = GameService.CardColorDisplayed:Connect(function(cardId, newColor)
+        self:setState(function(prevState)
+            local newCards = table.clone(prevState.cards)
+            for i, card in ipairs(newCards) do
+                if card.Id == cardId then
+                    local updated = table.clone(card)
+                    updated.IsRevealed = true
+                    updated.Color = newColor 
+                    newCards[i] = updated
+                    break
+                end
+            end
+            return { cards = newCards }
+        end)
+    end)
+
+    self.gameOverConn = GameService.GameOver:Connect(function(winner)
+        self:setState({ winner = winner })
+    end)
+    
+    self.secretConn = GameService.SecretBoardData:Connect(function(data)
+        self:setState({ cards = data })
+    end)
 end
 
 function Board:willUnmount()
-	self.isActive = false
-	if self.revealConn then self.revealConn:Disconnect() end
-	if self.gameOverConn then self.gameOverConn:Disconnect() end
-end
-
-local function PlayerIcon(props)
-	local color = props.Team == "Red" and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 160, 255)
-	local isMe = (props.FullRoleName == props.MyRole)
-	local isTurn = (props.FullRoleName == props.CurrentTurn)
-
-	local bgTransparency = isMe and 0 or 0.8 
-	local strokeColor = isTurn and Color3.new(1,1,1) or (isMe and Color3.new(1,1,1) or color)
-	local strokeTransparency = (isMe or isTurn) and 0 or 0.6
-	local strokeThickness = isTurn and 4 or 2
-
-	return Roact.createElement("Frame", {
-		Size = UDim2.fromScale(0.8, 0.45),
-		BackgroundColor3 = color,
-		BackgroundTransparency = bgTransparency,
-		BorderSizePixel = 0,
-	}, {
-		Stroke = Roact.createElement("UIStroke", {
-			Color = strokeColor,
-			Thickness = strokeThickness,
-			Transparency = strokeTransparency,
-		}),
-		Label = Roact.createElement("TextLabel", {
-			Text = props.RoleLabel,
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			TextColor3 = (isMe or isTurn) and Color3.new(1,1,1) or color,
-			Font = Enum.Font.GothamBold,
-			TextSize = 12,
-		}),
-		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-	})
+    self.isActive = false
+    if self.errorConn then self.errorConn:Disconnect() end
+    if self.turnConn then self.turnConn:Disconnect() end
+    if self.scoreConn then self.scoreConn:Disconnect() end
+    if self.timerConn then self.timerConn:Disconnect() end
+    if self.clueConn then self.clueConn:Disconnect() end
+    if self.revealConn then self.revealConn:Disconnect() end
+    if self.gameOverConn then self.gameOverConn:Disconnect() end
+    if self.secretConn then self.secretConn:Disconnect() end
 end
 
 function Board:render()
-	local children = {}
-	local myRole = self.props.MyRole or "None"
-	local currentTurn = self.state.currentTurn
-	local isSpymaster = string.find(myRole, "Spymaster") ~= nil
-	local isMyTurn = (myRole == currentTurn) and (self.state.winner == nil)
+    local children = {}
+    local myRole = self.props.MyRole or "None"
+    local myTeam = self.props.MyTeam or "None"
+    local currentTurn = self.state.currentTurn
+    local isSpymaster = (myRole == "Spymaster")
+    
+    local myFullRoleString = myTeam .. myRole 
+    local isMyTurn = (myFullRoleString == currentTurn) and (self.state.winner == nil)
 
-	children.Layout = Roact.createElement("UIGridLayout", {
-		-- [[ FIX: Spacing Overhaul ]]
-		-- Decreased CellSize to 0.18 to allow for gaps
-		CellSize = UDim2.new(0.18, 0, 0.18, 0),
-		-- Increased Padding to 0.02 for separation
-		CellPadding = UDim2.new(0.02, 0, 0.02, 0),
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-	})
+    local turnTextColor = Color3.new(1,1,1)
+    if string.find(currentTurn, "Red") then 
+        turnTextColor = Color3.fromRGB(255, 80, 80)
+    elseif string.find(currentTurn, "Blue") then 
+        turnTextColor = Color3.fromRGB(80, 160, 255) 
+    end
 
-	for _, cardData in ipairs(self.state.cards) do
-		local canClick = (isMyTurn and not isSpymaster)
+    children.Layout = Roact.createElement("UIGridLayout", {
+        CellSize = UDim2.new(0.18, 0, 0.18, 0),
+        CellPadding = UDim2.new(0.02, 0, 0.02, 0),
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+    })
 
-		children["Card_" .. cardData.Id] = Roact.createElement(Card, {
-			Id = cardData.Id,
-			Word = cardData.Word,
-			Color = cardData.Color,
-			IsRevealed = cardData.IsRevealed,
-			IsSpymaster = isSpymaster,
-			OnClick = canClick and self.props.OnCardClick or nil
-		})
-	end
+    for _, cardData in ipairs(self.state.cards) do
+        children["Card_" .. cardData.Id] = Roact.createElement(Card, {
+            Id = cardData.Id,
+            Word = cardData.Word,
+            Color = cardData.Color,
+            IsRevealed = cardData.IsRevealed,
+            IsSpymaster = isSpymaster,
+            OnClick = self.props.OnCardClick 
+        })
+    end
 
-	local clueText = "WAITING FOR CLUE..."
-	if self.state.currentClue and self.state.currentClue.Word ~= "" then
-		clueText = string.format("CLUE: %s (%d)", self.state.currentClue.Word, self.state.currentClue.Number)
-	end
+    local clueText = self.state.currentClue and string.format("CLUE: %s (%d)", self.state.currentClue.Word, self.state.currentClue.Number) or "WAITING FOR CLUE..."
 
-	local gameOverElement = nil
-	if self.state.winner then
-		local winColor = self.state.winner == "Red" and Color3.fromRGB(235, 87, 87) or Color3.fromRGB(47, 128, 237)
-		gameOverElement = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.new(0,0,0),
-			BackgroundTransparency = 0.3,
-			ZIndex = 100,
-		}, {
-			Container = Roact.createElement("Frame", {
-				Size = UDim2.fromScale(0.5, 0.3),
-				Position = UDim2.fromScale(0.5, 0.5),
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-				BorderSizePixel = 0,
-				ZIndex = 101,
-			}, {
-				Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) }),
-				Label = Roact.createElement("TextLabel", {
-					Text = self.state.winner .. " WINS!",
-					Size = UDim2.fromScale(1, 0.6),
-					BackgroundTransparency = 1,
-					TextColor3 = winColor,
-					Font = Enum.Font.GothamBlack,
-					TextSize = 40,
-					ZIndex = 102,
-				}),
-				Restart = Roact.createElement("TextButton", {
-					Text = "RETURN TO LOBBY",
-					Size = UDim2.fromScale(0.6, 0.25),
-					Position = UDim2.fromScale(0.5, 0.7),
-					AnchorPoint = Vector2.new(0.5, 0),
-					BackgroundColor3 = Color3.fromRGB(80, 80, 80),
-					TextColor3 = Color3.new(1,1,1),
-					Font = Enum.Font.GothamBold,
-					TextSize = 18,
-					ZIndex = 102,
-					[Roact.Event.Activated] = self.props.OnExit
-				}, {
-					Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.3, 0) })
-				})
-			})
-		})
-	end
+    return Roact.createElement("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+        BorderSizePixel = 0,
+    }, {
+        TopBar = Roact.createElement("Frame", {
+            Size = UDim2.fromScale(1, 0.08),
+            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        }, {
+            Layout = Roact.createElement("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0.05, 0) }),
+            ScoreDisp = Roact.createElement("TextLabel", { Text = "SCORE: " .. self.state.score, Size = UDim2.fromScale(0, 0.8), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 18, BackgroundTransparency = 1 }),
+            TurnDisp = Roact.createElement("TextLabel", { Text = formatRole(currentTurn) .. " TURN", Size = UDim2.fromScale(0, 0.8), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = turnTextColor, Font = Enum.Font.GothamBlack, TextSize = 20, BackgroundTransparency = 1 }),
+            TimeDisp = Roact.createElement("TextLabel", { Text = self.timeText, Size = UDim2.fromScale(0, 0.8), AutomaticSize = Enum.AutomaticSize.X, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 18, BackgroundTransparency = 1 }),
+        }),
 
-	return Roact.createElement("Frame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(15, 15, 15),
-		BorderSizePixel = 0,
-	}, {
-		TopBar = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(1, 0.08),
-			BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-			BorderSizePixel = 0,
-		}, {
-			Layout = Roact.createElement("UIListLayout", {
-				FillDirection = Enum.FillDirection.Horizontal,
-				HorizontalAlignment = Enum.HorizontalAlignment.Center,
-				VerticalAlignment = Enum.VerticalAlignment.Center,
-				Padding = UDim.new(0.05, 0)
-			}),
-			TurnDisp = Roact.createElement("TextLabel", {
-				Text = formatRole(currentTurn),
-				AutomaticSize = Enum.AutomaticSize.X,
-				Size = UDim2.fromScale(0, 0.8),
-				BackgroundTransparency = 1,
-				TextColor3 = Color3.fromRGB(255, 200, 80),
-				Font = Enum.Font.GothamBlack,
-				TextSize = 20,
-			}),
-			TimeDisp = Roact.createElement("TextLabel", {
-				Text = self.timeText, 
-				AutomaticSize = Enum.AutomaticSize.X,
-				Size = UDim2.fromScale(0, 0.8),
-				BackgroundTransparency = 1,
-				TextColor3 = Color3.new(1,1,1),
-				Font = Enum.Font.GothamBold,
-				TextSize = 18,
-			}),
-			ScoreDisp = Roact.createElement("TextLabel", {
-				Text = "SCORE: " .. self.state.score,
-				AutomaticSize = Enum.AutomaticSize.X,
-				Size = UDim2.fromScale(0, 0.8),
-				BackgroundTransparency = 1,
-				TextColor3 = Color3.new(1,1,1),
-				Font = Enum.Font.GothamBold,
-				TextSize = 18,
-			}),
-		}),
+        ClueBanner = Roact.createElement("Frame", {
+            Size = UDim2.fromScale(0.4, 0.05),
+            Position = UDim2.fromScale(0.5, 0.12),
+            AnchorPoint = Vector2.new(0.5, 0),
+            BackgroundColor3 = Color3.fromRGB(50, 50, 50),
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+            Label = Roact.createElement("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = clueText, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBlack, TextSize = 16 }),
+        }),
 
-		ClueBanner = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(0.4, 0.05),
-			Position = UDim2.fromScale(0.5, 0.1),
-			AnchorPoint = Vector2.new(0.5, 0),
-			BackgroundColor3 = Color3.fromRGB(50, 50, 50),
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
-			Label = Roact.createElement("TextLabel", {
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				Text = clueText,
-				TextColor3 = Color3.new(1,1,1),
-				Font = Enum.Font.GothamBlack,
-				TextSize = 16,
-			})
-		}),
+        GameBoard = Roact.createElement("Frame", {
+            Size = UDim2.fromScale(0.6, 0.55),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5), 
+            BackgroundTransparency = 1,
+        }, children),
 
-		LeftPanel = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(0.1, 0.65),
-			Position = UDim2.fromScale(0.05, 0.5),
-			AnchorPoint = Vector2.new(0, 0.5),
-			BackgroundTransparency = 1,
-		}, {
-			List = Roact.createElement("UIListLayout", { Padding = UDim.new(0.05, 0), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
-			P1 = Roact.createElement(PlayerIcon, { Team = "Red", RoleLabel = "SPY", FullRoleName = "RedSpymaster", MyRole = myRole, CurrentTurn = currentTurn }),
-			P2 = Roact.createElement(PlayerIcon, { Team = "Red", RoleLabel = "OP", FullRoleName = "RedOperative", MyRole = myRole, CurrentTurn = currentTurn }),
-		}),
+        ErrorToast = self.state.errorMessage and Roact.createElement("TextLabel", {
+            Text = self.state.errorMessage,
+            Size = UDim2.fromScale(0.35, 0.05),
+            Position = UDim2.fromScale(0.5, 0.83),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(220, 50, 50),
+            TextColor3 = Color3.new(1,1,1),
+            Font = Enum.Font.GothamBold,
+            TextSize = 16,
+            ZIndex = 50,
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.3, 0) })
+        }),
 
-		GameBoard = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(0.6, 0.55),
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.45), 
-			BackgroundTransparency = 1,
-			ZIndex = 5,
-		}, children),
-
-		RightPanel = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(0.1, 0.65),
-			Position = UDim2.fromScale(0.95, 0.5),
-			AnchorPoint = Vector2.new(1, 0.5),
-			BackgroundTransparency = 1,
-		}, {
-			List = Roact.createElement("UIListLayout", { Padding = UDim.new(0.05, 0), VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Center }),
-			P3 = Roact.createElement(PlayerIcon, { Team = "Blue", RoleLabel = "SPY", FullRoleName = "BlueSpymaster", MyRole = myRole, CurrentTurn = currentTurn }),
-			P4 = Roact.createElement(PlayerIcon, { Team = "Blue", RoleLabel = "OP", FullRoleName = "BlueOperative", MyRole = myRole, CurrentTurn = currentTurn }),
-		}),
-
-		ClueHUD = Roact.createElement(ClueInput, {
-			IsVisible = (isMyTurn and isSpymaster),
-			OnSubmit = self.props.OnGiveClue 
-		}),
-
-		MenuButton = Roact.createElement("TextButton", {
-			Text = "⚙️",
-			Size = UDim2.fromScale(0.04, 0.06),
-			Position = UDim2.fromScale(0.98, 0.02), 
-			AnchorPoint = Vector2.new(1, 0),
-			BackgroundColor3 = Color3.fromRGB(60, 60, 60),
-			TextColor3 = Color3.new(1,1,1),
-			Font = Enum.Font.GothamBold,
-			TextSize = 18,
-			AutoButtonColor = false,
-			[Roact.Event.Activated] = function()
-				if self.props.OnExit then self.props.OnExit() end
-			end
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-		}),
-
-		GameOverModal = gameOverElement,
-	})
+        ClueHUD = Roact.createElement(ClueInput, {
+            IsVisible = (isMyTurn and isSpymaster),
+            OnSubmit = self.props.OnGiveClue 
+        }),
+    })
 end
 
 return Board]]></ProtectedString>
@@ -1308,11 +1170,11 @@ local Roact = require(ReplicatedStorage.Packages.Roact)
 local Card = Roact.PureComponent:extend("Card")
 
 local COLOR_MAP = {
-	Red = Color3.fromRGB(255, 80, 80), 
-	Blue = Color3.fromRGB(80, 160, 255), 
-	Neutral = Color3.fromRGB(245, 235, 215), 
-	Assassin = Color3.fromRGB(30, 30, 30), 
-	Unknown = Color3.fromRGB(255, 255, 255)
+    Red = Color3.fromRGB(255, 80, 80), 
+    Blue = Color3.fromRGB(80, 160, 255), 
+    Beige = Color3.fromRGB(245, 235, 215), 
+    Black = Color3.fromRGB(30, 30, 30),  
+    Unknown = Color3.fromRGB(255, 255, 255)
 }
 
 local function darken(c3, amount)
@@ -1322,8 +1184,7 @@ end
 
 function Card:init()
 	self.buttonRef = Roact.createRef()
-	
-	-- We define the animation style once here
+
 	local TWEEN_INFO = TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 	
 	self.tween = function(props)
@@ -1343,8 +1204,7 @@ function Card:init()
 			local targetColor = darken(currColor, 0.1)
 			
 			self.tween({ 
-				-- [[ FIX: Hover Pop reduced ]]
-				-- Was 1.08, now 1.05 to prevent crowding
+
 				Size = UDim2.fromScale(1.05, 1.05),
 				BackgroundColor3 = targetColor
 			})
@@ -1370,7 +1230,6 @@ function Card:init()
 				local tDown = TweenService:Create(btn, TweenInfo.new(0.04), { Size = UDim2.fromScale(0.95, 0.95) })
 				tDown:Play()
 				tDown.Completed:Wait()
-				-- Bounce back to new hover size
 				TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Size = UDim2.fromScale(1.05, 1.05) }):Play()
 			end
 			self.props.OnClick(self.props.Id)
@@ -1401,8 +1260,7 @@ function Card:render()
 	self.currentBaseColor = displayColor
 
 	local textColor = Color3.fromRGB(50, 50, 50)
-	
-	-- White text for dark backgrounds
+
 	if (displayColor == COLOR_MAP.Red or displayColor == COLOR_MAP.Blue or displayColor == COLOR_MAP.Assassin) then
 		textColor = Color3.fromRGB(255, 255, 255)
 	end
@@ -1432,12 +1290,11 @@ function Card:render()
 			[Roact.Event.MouseLeave] = self.onHoverLeave,
 		}, {
 			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.15, 0) }),
-			
-			-- [[ FIX: Thinner Black Stroke ]]
+	
 			Stroke = Roact.createElement("UIStroke", {
-				Color = Color3.new(0,0,0), -- Pure Black
-				Thickness = 1.5,           -- Much Thinner (was 2.5)
-				Transparency = 0.4,        -- Subtle transparency
+				Color = Color3.new(0,0,0), 
+				Thickness = 1.5,           
+				Transparency = 0.4,      
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 			}),
 
@@ -1620,7 +1477,7 @@ local Lobby = Roact.Component:extend("Lobby")
 function Lobby:init()
 	self.state = {
 		inputText = "",
-		errorMessage = nil -- Store error text here
+		errorMessage = nil 
 	}
 end
 
@@ -1749,145 +1606,147 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 local WaitingRoom = Roact.Component:extend("WaitingRoom")
 
 local function formatRole(roleName)
-	if not roleName then return "OPEN" end
-	return roleName:gsub("Red", ""):gsub("Blue", ""):upper()
+    if not roleName then return "OPEN" end
+    return roleName:gsub("Red", ""):gsub("Blue", ""):upper()
 end
 
 function WaitingRoom:init()
-	self.state = {
-		slots = {
-			RedSpymaster = nil,
-			RedOperative = nil,
-			BlueSpymaster = nil,
-			BlueOperative = nil
-		},
-		hostName = ""
-	}
+    self.state = {
+        slots = {
+            RedSpymaster = nil,
+            RedOperative = nil,
+            BlueSpymaster = nil,
+            BlueOperative = nil
+        },
+        hostName = ""
+    }
 end
 
 function WaitingRoom:didMount()
-	local RoomService = Knit.GetService("RoomService")
-	
-	self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
-		print("UI RECEIVED UPDATE:", updatedSlots, "HOST:", hostName)
-		self:setState({
-			slots = updatedSlots,
-			hostName = hostName or ""
-		})
-	end)
+    local RoomService = Knit.GetService("RoomService")
+    
+    self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
+        print("UI RECEIVED UPDATE:", updatedSlots, "HOST:", hostName)
+        self:setState({
+            slots = updatedSlots,
+            hostName = hostName or ""
+        })
+    end)
 end
 
 function WaitingRoom:willUnmount()
-	if self.connection then
-		self.connection:Disconnect()
-	end
+    if self.connection then
+        self.connection:Disconnect()
+    end
 end
 
 function WaitingRoom:RenderSlotButton(role, color, position, isDisabled)
-	local occupantName = self.state.slots[role]
-	local isTaken = occupantName ~= nil
-	
-	local displayRole = formatRole(role)
-	
-	local text = displayRole
-	if isTaken then
-		text = displayRole .. "\n" .. occupantName
-	else
-		text = displayRole .. "\n[ OPEN ]"
-	end
+    local occupantName = self.state.slots[role]
+    local isTaken = occupantName ~= nil
+    
+    local displayRole = formatRole(role)
+    
+    local text = displayRole
+    if isTaken then
+        text = displayRole .. "\n" .. occupantName
+    else
+        text = displayRole .. "\n[ OPEN ]"
+    end
 
-	-- Visual settings for Disabled state
-	local transparency = (isTaken or isDisabled) and 0.6 or 0
-	local activeState = not isDisabled 
-	
-	return Roact.createElement("TextButton", {
-		Text = text,
-		Size = UDim2.fromScale(0.4, 0.15),
-		Position = position,
-		BackgroundColor3 = color,
-		BackgroundTransparency = transparency,
-		Font = Enum.Font.GothamBold,
-		TextSize = 18,
-		TextColor3 = Color3.new(1,1,1),
-		AutoButtonColor = activeState, 
-		Active = activeState, 
-		BorderSizePixel = 0,
-		
-		[Roact.Event.Activated] = function()
-			if not isDisabled then
-				self.props.OnSelectSlot(role)
-			end
-		end
-	}, {
-		Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) })
-	})
+    local transparency = (isTaken or isDisabled) and 0.6 or 0
+    local activeState = not isDisabled 
+    
+    return Roact.createElement("TextButton", {
+        Text = text,
+        Size = UDim2.fromScale(0.4, 0.15),
+        Position = position,
+        BackgroundColor3 = color,
+        BackgroundTransparency = transparency,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        TextColor3 = Color3.new(1,1,1),
+        AutoButtonColor = activeState, 
+        Active = activeState, 
+        BorderSizePixel = 0,
+        
+        [Roact.Event.Activated] = function()
+            if not isDisabled then
+                local team = string.match(role, "Red") and "Red" or "Blue"
+                local roleType = string.match(role, "Spymaster") and "Spymaster" or "Operative"
+                
+                self.props.OnSelectSlot(team, roleType)
+            end
+        end
+    }, {
+        Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) })
+    })
 end
 
 function WaitingRoom:render()
-	local myName = Players.LocalPlayer.Name
-	local amIHost = (myName == self.state.hostName)
-	
-	local startBtnColor = amIHost and Color3.fromRGB(40, 180, 100) or Color3.fromRGB(60, 60, 60)
-	local startBtnText = amIHost and "INITIATE" or "WAITING FOR HOST..."
+    local myName = Players.LocalPlayer.Name
+    local amIHost = (myName == self.state.hostName)
+    
+    local startBtnColor = amIHost and Color3.fromRGB(40, 180, 100) or Color3.fromRGB(60, 60, 60)
+    local startBtnText = amIHost and "INITIATE" or "WAITING FOR HOST..."
 
-	return Roact.createElement("Frame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(10, 10, 10),
-	}, {
-		Title = Roact.createElement("TextLabel", {
-			Text = "MISSION: " .. (self.props.RoomCode or "????") .. "\nHOST: " .. self.state.hostName,
-			Size = UDim2.fromScale(1, 0.15),
-			Position = UDim2.fromScale(0, 0.05),
-			Font = Enum.Font.GothamBlack,
-			TextSize = 24,
-			TextColor3 = Color3.fromRGB(200, 200, 200),
-			BackgroundTransparency = 1,
-		}),
+    return Roact.createElement("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(10, 10, 10),
+    }, {
+        Title = Roact.createElement("TextLabel", {
+            Text = "MISSION: " .. (self.props.RoomCode or "????") .. "\nHOST: " .. self.state.hostName,
+            Size = UDim2.fromScale(1, 0.15),
+            Position = UDim2.fromScale(0, 0.05),
+            Font = Enum.Font.GothamBlack,
+            TextSize = 24,
+            TextColor3 = Color3.fromRGB(200, 200, 200),
+            BackgroundTransparency = 1,
+        }),
 
-		-- RED TEAM (Enabled)
-		RedSpy = self:RenderSlotButton("RedSpymaster", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.3), false),
-		RedOp = self:RenderSlotButton("RedOperative", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.5), false),
+        -- RED TEAM (Enabled)
+        RedSpy = self:RenderSlotButton("RedSpymaster", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.3), false),
+        RedOp = self:RenderSlotButton("RedOperative", Color3.fromRGB(180, 40, 40), UDim2.fromScale(0.05, 0.5), false),
 
-		-- BLUE TEAM (Disabled)
-		BlueSpy = self:RenderSlotButton("BlueSpymaster", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.3), true),
-		BlueOp = self:RenderSlotButton("BlueOperative", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.5), true),
+        -- BLUE TEAM 
+        BlueSpy = self:RenderSlotButton("BlueSpymaster", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.3), false),
+        BlueOp = self:RenderSlotButton("BlueOperative", Color3.fromRGB(40, 90, 180), UDim2.fromScale(0.55, 0.5), false),
 
-		-- START BUTTON
-		StartButton = Roact.createElement("TextButton", {
-			Text = startBtnText,
-			Size = UDim2.fromScale(0.3, 0.1),
-			Position = UDim2.fromScale(0.35, 0.8),
-			BackgroundColor3 = startBtnColor,
-			Font = Enum.Font.GothamBlack,
-			TextSize = 20,
-			TextColor3 = amIHost and Color3.new(0,0,0) or Color3.fromRGB(150,150,150),
-			AutoButtonColor = false,
-			Active = amIHost, 
-			
-			[Roact.Event.Activated] = function()
-				if amIHost then
-					self.props.OnStartGame()
-				end
-			end
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-		}),
-		
-		BackButton = Roact.createElement("TextButton", {
-			Text = "ABORT",
-			Size = UDim2.fromScale(0.1, 0.05),
-			Position = UDim2.fromScale(0.88, 0.92),
-			BackgroundColor3 = Color3.fromRGB(60, 60, 60),
-			TextColor3 = Color3.new(0.8,0.8,0.8),
-			Font = Enum.Font.GothamBold,
-			TextSize = 14,
-			AutoButtonColor = false,
-			
-			[Roact.Event.Activated] = self.props.OnLeave
-		}, {
-			Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
-		})
-	})
+        -- START BUTTON
+        StartButton = Roact.createElement("TextButton", {
+            Text = startBtnText,
+            Size = UDim2.fromScale(0.3, 0.1),
+            Position = UDim2.fromScale(0.35, 0.8),
+            BackgroundColor3 = startBtnColor,
+            Font = Enum.Font.GothamBlack,
+            TextSize = 20,
+            TextColor3 = amIHost and Color3.new(0,0,0) or Color3.fromRGB(150,150,150),
+            AutoButtonColor = false,
+            Active = amIHost, 
+            
+            [Roact.Event.Activated] = function()
+                if amIHost then
+                    self.props.OnStartGame()
+                end
+            end
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+        }),
+        
+        BackButton = Roact.createElement("TextButton", {
+            Text = "ABORT",
+            Size = UDim2.fromScale(0.1, 0.05),
+            Position = UDim2.fromScale(0.88, 0.92),
+            BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+            TextColor3 = Color3.new(0.8,0.8,0.8),
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            AutoButtonColor = false,
+            
+            [Roact.Event.Activated] = self.props.OnLeave
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.2, 0) })
+        })
+    })
 end
 
 return WaitingRoom]]></ProtectedString>
@@ -1929,96 +1788,104 @@ local Board = require(script.Parent.Parent.Components.Board.Board)
 local GameController = Knit.CreateController { Name = "GameController" }
 
 function GameController:KnitStart()
-	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-	
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "GameUI"
-	screenGui.IgnoreGuiInset = true
-	screenGui.Parent = playerGui
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "GameUI"
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = playerGui
 
-	self.ScreenGui = screenGui
-	self.CurrentRoomCode = nil
-	self.MyRole = "None"
-	
-	local RoomService = Knit.GetService("RoomService")
-	self.GameService = Knit.GetService("GameService")
+    self.ScreenGui = screenGui
+    self.CurrentRoomCode = nil
+    self.MyTeam = "None"
+    self.MyRole = "None"
+    
+    local RoomService = Knit.GetService("RoomService")
+    self.GameService = Knit.GetService("GameService")
 
-	RoomService.GameStarted:Connect(function()
-		print("Controller: Game Started Signal")
-		self:MountBoard()
-	end)
-	
-	self:MountLobby()
+    self.GameService.GameStarted:Connect(function()
+        print("Controller: Game Started Signal")
+        self:MountBoard()
+    end)
+    
+    self:MountLobby()
 end
 
 function GameController:MountLobby()
-	if self.Handle then Roact.unmount(self.Handle) end
-	local RoomService = Knit.GetService("RoomService")
+    if self.Handle then Roact.unmount(self.Handle) end
+    local RoomService = Knit.GetService("RoomService")
 
-	local element = Roact.createElement(Lobby, {
-		OnCreate = function()
-			RoomService:CreateRoom():andThen(function(code)
-				self.CurrentRoomCode = code
-				self:MountWaitingRoom()
-			end)
-		end,
-		OnJoin = function(code)
-			RoomService:JoinRoom(code):andThen(function(success)
-				if success then
-					self.CurrentRoomCode = code
-					self:MountWaitingRoom()
-				end
-			end)
-		end
-	})
-	self.Handle = Roact.mount(element, self.ScreenGui)
+    local element = Roact.createElement(Lobby, {
+        OnCreate = function()
+            RoomService:CreateRoom("Normal", "Standard"):andThen(function(code)
+                if code then
+                    self.CurrentRoomCode = code
+                    self:MountWaitingRoom()
+                end
+            end)
+        end,
+        OnJoin = function(code)
+            RoomService:JoinRoom(code, "None", "Operative"):andThen(function(success)
+                if success then
+                    self.CurrentRoomCode = code
+                    self:MountWaitingRoom()
+                end
+            end)
+        end
+    })
+    self.Handle = Roact.mount(element, self.ScreenGui)
 end
 
 function GameController:MountWaitingRoom()
-	if self.Handle then Roact.unmount(self.Handle) end
-	local RoomService = Knit.GetService("RoomService")
-	
-	local element = Roact.createElement(WaitingRoom, {
-		RoomCode = self.CurrentRoomCode,
-		OnSelectSlot = function(slotName)
-			self.MyRole = slotName 
-			RoomService:JoinSlot(self.CurrentRoomCode, slotName)
-		end,
-		OnStartGame = function()
-			RoomService:StartGame(self.CurrentRoomCode)
-		end,
-		OnLeave = function()
-			self.CurrentRoomCode = nil
-			self.MyRole = "None"
-			self:MountLobby()
-		end
-	})
-	self.Handle = Roact.mount(element, self.ScreenGui)
+    if self.Handle then Roact.unmount(self.Handle) end
+    local RoomService = Knit.GetService("RoomService")
+    
+    local element = Roact.createElement(WaitingRoom, {
+        RoomCode = self.CurrentRoomCode,
+        OnSelectSlot = function(teamName, roleName)
+            self.MyTeam = teamName
+            self.MyRole = roleName 
+            RoomService:JoinRoom(self.CurrentRoomCode, teamName, roleName)
+        end,
+        OnStartGame = function()
+            self.GameService:StartGame(self.CurrentRoomCode)
+        end,
+        OnLeave = function()
+            RoomService:LeaveRoom(self.CurrentRoomCode)
+            self.CurrentRoomCode = nil
+            self.MyTeam = "None"
+            self.MyRole = "None"
+            self:MountLobby()
+        end
+    })
+    self.Handle = Roact.mount(element, self.ScreenGui)
 end
 
 function GameController:MountBoard()
-	if self.Handle then Roact.unmount(self.Handle) end
-	
-	local element = Roact.createElement(Board, {
-		MyRole = self.MyRole, 
-		
-		OnCardClick = function(cardId)
-			self.GameService:GuessWord(cardId)
-		end,
-		
-		OnGiveClue = function(word, number)
-			print("Controller: Sending Clue ->", word, number)
-			self.GameService:GiveClue(word, number)
-		end,
+    if self.Handle then Roact.unmount(self.Handle) end
+    
+    local element = Roact.createElement(Board, {
+        MyTeam = self.MyTeam,
+        MyRole = self.MyRole, 
+        
+        OnCardClick = function(cardId)
+            self.GameService:SelectCard(cardId)
+        end,
+        
+        OnGiveClue = function(word, number)
+            print("Controller: Sending Clue ->", word, number)
+            self.GameService:SubmitClue(word, number)
+        end,
 
-		OnExit = function()
-			self.CurrentRoomCode = nil
-			self.MyRole = "None"
-			self:MountLobby()
-		end
-	})
+        OnExit = function()
+            self.CurrentRoomCode = nil
+            self.MyTeam = "None"
+            self.MyRole = "None"
+            self:MountLobby()
+        end
+    })
 
-	self.Handle = Roact.mount(element, self.ScreenGui)
+    self.Handle = Roact.mount(element, self.ScreenGui)
 end
 
 return GameController]]></ProtectedString>
@@ -23901,14 +23768,34 @@ end
 			<Item class="ModuleScript" referent="RBXD257438026EC450F8B1AF8626347E886">
 				<Properties>
 					<Content name="LinkedSource"><null></null></Content>
-					<ProtectedString name="Source"><![CDATA[return {
+					<ProtectedString name="Source"><![CDATA[local Dictionary = {}
+
+-- Your massive list of words goes here
+local WordList = {
     "AFRICA", "AGENT", "AIR", "ALIEN", "ALPS", "AMAZON", "AMBULANCE", "AMERICA",
     "ANGEL", "ANTARCTICA", "APPLE", "ARM", "ATLANTIS", "AUSTRALIA", "AZTEC",
     "BACK", "BALL", "BAND", "BANK", "BAR", "BARK", "BAT", "BATTERY", "BEACH",
     "BEAR", "BEAT", "BED", "BEIJING", "BELL", "BELT", "BERLIN", "BERMUDA",
     "BERRY", "BILL", "BLOCK", "BOARD", "BOLT", "BOMB", "BOND", "BOOM", "BOOT",
     "BOTTLE", "BOW", "BOX", "BRIDGE", "BRUSH", "BUCK", "BUFFALO", "BUG", "BUGLE"
-}]]></ProtectedString>
+}
+
+-- US-2.1 / US-2.2
+function Dictionary:Get_Random_Words(count)
+    local shuffled = table.clone(WordList)
+    for i = #shuffled, 2, -1 do
+        local j = math.random(i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    end
+    
+    local selectedWords = {}
+    for i = 1, count do
+        table.insert(selectedWords, shuffled[i])
+    end
+    return selectedWords
+end
+
+return Dictionary]]></ProtectedString>
 					<string name="ScriptGuid">{2284B70D-2509-4E22-833E-0DA1AB93203B}</string>
 					<BinaryString name="AttributesSerialize"></BinaryString>
 					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -23919,6 +23806,453 @@ end
 					<BinaryString name="Tags"></BinaryString>
 					<UniqueId name="UniqueId">725ee9f51b0abd1409856420000011c9</UniqueId>
 				</Properties>
+			</Item>
+			<Item class="Folder" referent="RBX3670C1D6C7B441BFB5F11F248B17806C">
+				<Properties>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+					<string name="Name">Models</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+					<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009b3</UniqueId>
+				</Properties>
+				<Item class="ModuleScript" referent="RBXC6C10A7E327A4D539C19EB0CF66288FC">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[-- CLUE MODEL
+local Clue = {}
+Clue.__index = Clue
+function Clue.new(word, number)
+    local self = setmetatable({}, Clue)
+    self.Word = word
+    self.Number = number
+    return self
+end
+function Clue:Set_Word(word) self.Word = word end
+function Clue:Set_Number(number) self.Number = number end
+return Clue]]></ProtectedString>
+						<string name="ScriptGuid">{599D9B92-7B29-4BAE-AA88-3BE0DCBF06B8}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Clue</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009b4</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBXAD28200C34774B53A3223CF1DF2E8F06">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[-- PLAYER FROM DOMAIN MODEL
+local PlayerModel = {}
+PlayerModel.__index = PlayerModel
+
+function PlayerModel.new(robloxPlayer, team, role)
+    local self = setmetatable({}, PlayerModel)
+    self.UserId = tostring(robloxPlayer.UserId)
+    self.UserName = robloxPlayer.Name
+    self.Team = team
+    self.Role = role
+    self.Coins = 0
+    return self
+end
+
+function PlayerModel:IsPlayer(robloxPlayer)
+    return self.UserId == tostring(robloxPlayer.UserId)
+end
+
+function PlayerModel:GetFullName()
+    return tostring(self.Team) .. tostring(self.Role)
+end
+
+return PlayerModel]]></ProtectedString>
+						<string name="ScriptGuid">{23825B38-495F-4E5D-8294-0CA0501D26A9}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Player</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009b6</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBXF599C2D24A2A40C1AE1B4C8DE8939116">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local GameRound = {}
+GameRound.__index = GameRound
+
+function GameRound.new()
+    local self = setmetatable({}, GameRound)
+    self.Room = nil
+    self.State = "Clue Phase"
+    self.CurrentTurn = require(script.Parent.Parent.Enums.Team).RED
+    self.ActiveRole = require(script.Parent.Parent.Enums.Role).SPYMASTER
+    self.TurnTimer = 60
+    self.ScoreRed = 0
+    self.ScoreBlue = 0
+    self.Winner = nil
+    self.ClueLog = {} 
+    return self
+end
+
+-- US-2.1
+function GameRound:Associate_Room(room)
+    self.Room = room
+end
+
+-- US-4.1
+function GameRound:Validate_Operative_Turn(player)
+    local RoleEnum = require(script.Parent.Parent.Enums.Role)
+    local pModel = nil
+    for _, p in ipairs(self.Room.Players) do
+        if tostring(p.UserId) == tostring(player.UserId) then pModel = p break end
+    end
+    
+    if not pModel then return false end
+    return pModel.Role == RoleEnum.OPERATIVE and pModel.Team == self.CurrentTurn
+end
+
+-- US-4.3
+function GameRound:Validate_Spymaster_Turn(player)
+    local RoleEnum = require(script.Parent.Parent.Enums.Role)
+    local pModel = nil
+    for _, p in ipairs(self.Room.Players) do
+        if tostring(p.UserId) == tostring(player.UserId) then pModel = p break end
+    end
+    
+    if not pModel then return false end
+    return pModel.Role == RoleEnum.SPYMASTER and pModel.Team == self.CurrentTurn
+end
+
+-- US-4.1
+function GameRound:Increment_Score()
+    local TeamEnum = require(script.Parent.Parent.Enums.Team)
+    if self.CurrentTurn == TeamEnum.RED then
+        self.ScoreRed = self.ScoreRed + 1
+    else
+        self.ScoreBlue = self.ScoreBlue + 1
+    end
+end
+
+function GameRound:Set_State(newState)
+    self.State = newState
+end
+
+function GameRound:Switch_Turn()
+    local TeamEnum = require(script.Parent.Parent.Enums.Team)
+    local RoleEnum = require(script.Parent.Parent.Enums.Role)
+    
+    if self.ActiveRole == RoleEnum.OPERATIVE then
+        self.CurrentTurn = (self.CurrentTurn == TeamEnum.RED) and TeamEnum.BLUE or TeamEnum.RED
+    end
+    
+    self.ActiveRole = (self.ActiveRole == RoleEnum.SPYMASTER) and RoleEnum.OPERATIVE or RoleEnum.SPYMASTER
+    self.TurnTimer = 60
+end
+
+function GameRound:Set_Winner(teamEnum)
+    self.Winner = teamEnum
+    self.State = "GameOver"
+end
+
+function GameRound:Append_ClueLog(word, number)
+    table.insert(self.ClueLog, {Word = word, Number = number})
+end
+
+function GameRound:Get_Turn_String()
+    return tostring(self.CurrentTurn) .. tostring(self.ActiveRole)
+end
+
+return GameRound]]></ProtectedString>
+						<string name="ScriptGuid">{D3FD9976-301F-4434-B51B-891F52973F99}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">GameRound</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009b8</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBXA13C832239E24FC68993E02C57ACC8DC">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[
+local ColorEnum = require(script.Parent.Parent.Enums.Color)
+local Card = {}
+Card.__index = Card
+
+function Card.new(id, word)
+    local self = setmetatable({}, Card)
+    self.Id = id
+    self.Word = word
+    self.RealColor = ColorEnum.BEIGE
+    self.IsRevealed = false
+    return self
+end
+
+function Card:Get_IsRevealed() 
+    return self.IsRevealed 
+end
+
+function Card:Set_IsRevealed(status) 
+    self.IsRevealed = status 
+end
+
+function Card:Get_RealColor() 
+    return self.RealColor 
+end
+
+return Card]]></ProtectedString>
+						<string name="ScriptGuid">{7B572B2B-E786-4D9F-9E1E-187D7C719142}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Card</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009c0</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX214AAFE2AA4D4E66AED308E58ABAB0BA">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local CardModel = require(script.Parent.Card)
+local ColorEnum = require(script.Parent.Parent.Enums.Color)
+
+local Board = {}
+Board.__index = Board
+
+local function shuffle(t)
+    local newTable = table.clone(t)
+    for i = #t, 2, -1 do
+        local j = math.random(i)
+        newTable[i], newTable[j] = newTable[j], newTable[i]
+    end
+    return newTable
+end
+
+function Board.new(gameRound, wordsList)
+    local self = setmetatable({}, Board)
+    self.GameRound = gameRound
+    self.Cards = {}
+    return self
+end
+
+-- US-2.2
+function Board:Generate_Cards(wordsList)
+    for i = 1, 25 do
+        local c = CardModel.new(i, wordsList[i])
+        table.insert(self.Cards, c)
+    end
+end
+
+-- US-2.2
+function Board:Assign_Colors(redCount, blueCount, beigeCount, blackCount)
+    local colors = {}
+    for _ = 1, redCount do table.insert(colors, ColorEnum.RED) end
+    for _ = 1, blueCount do table.insert(colors, ColorEnum.BLUE) end
+    for _ = 1, beigeCount do table.insert(colors, ColorEnum.BEIGE) end
+    for _ = 1, blackCount do table.insert(colors, ColorEnum.BLACK) end
+    
+    local shuffledColors = shuffle(colors)
+    
+    for i, card in ipairs(self.Cards) do
+        card.RealColor = shuffledColors[i]
+    end
+end
+
+function Board:Get_Card(cardId)
+    for _, card in ipairs(self.Cards) do
+        if card.Id == cardId then 
+            return card 
+        end
+    end
+    return nil
+end
+
+-- US-4.3
+function Board:Check_Word_Conflict(word)
+    local lowerWord = string.lower(word)
+    for _, card in ipairs(self.Cards) do
+        if string.lower(card.Word) == lowerWord then 
+            return true 
+        end
+    end
+    return false
+end
+
+-- US-3.2
+function Board:Get_Secret_Board_Data()
+    local data = {}
+    for _, card in ipairs(self.Cards) do
+        table.insert(data, {
+            Id = card.Id,
+            Word = card.Word,
+            Color = card.RealColor,
+            IsRevealed = card.IsRevealed
+        })
+    end
+    return data
+end
+
+return Board]]></ProtectedString>
+						<string name="ScriptGuid">{96074C25-C3E0-44FE-93D0-1336058FAB79}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Board</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000009c2</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX9EBF89671FE744E7A13081F07639A823">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[-- ROOM FROM DOMAIN MODEL
+local Room = {}
+Room.__index = Room
+
+function Room.new(code, difficulty, wordPack)
+    local self = setmetatable({}, Room)
+    self.Code = code
+    self.HostName = ""
+    self.State = "Waiting"
+    self.Difficulty = difficulty or "Normal"
+    self.WordPack = wordPack or "Standard"
+    self.Players = {}
+    return self
+end
+
+function Room:Set_Host(robloxPlayer)
+    self.HostName = robloxPlayer.Name
+end
+
+function Room:Add_Member(playerModel)
+    table.insert(self.Players, playerModel)
+end
+
+function Room:Get_Player_Count()
+    return #self.Players
+end
+
+function Room:Set_State(newState)
+    self.State = newState
+end
+
+function Room:Check_Host(robloxPlayer)
+    return self.HostName == robloxPlayer.Name
+end
+
+-- US-1.2: New required methods
+function Room:Assign_Role(playerModel, roleEnum)
+    playerModel.Role = roleEnum
+end
+
+function Room:Assign_Team(playerModel, teamEnum)
+    playerModel.Team = teamEnum
+end
+
+function Room:Update_Player_List(playerModel)
+    for i, p in ipairs(self.Players) do
+        if p.UserId == playerModel.UserId then
+            self.Players[i] = playerModel
+            break
+        end
+    end
+end
+
+return Room]]></ProtectedString>
+						<string name="ScriptGuid">{E93F51B0-F0EA-47BE-B71A-0918F28C4D39}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Room</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e2000000aeb</UniqueId>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="Folder" referent="RBXD4379C9E74F34609803529B6914A89BA">
+				<Properties>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+					<string name="Name">Enums</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+					<UniqueId name="UniqueId">10f8b191193fa0ec09c47e2000000ae4</UniqueId>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX2DDCCE01110F49E0A49645A6719D73E8">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local Role = { SPYMASTER = "Spymaster", OPERATIVE = "Operative" }
+table.freeze(Role)
+return Role]]></ProtectedString>
+						<string name="ScriptGuid">{545FB59B-AF2A-4B40-9E6B-0A10C5795790}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Role</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e2000000ae5</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX338F81F9C22D4A06BB6DA557DC4749BF">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local Team = { RED = "Red", BLUE = "Blue" }
+table.freeze(Team)
+return Team]]></ProtectedString>
+						<string name="ScriptGuid">{CC4FC936-E98B-48D7-AA14-AA7873AE53EA}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Team</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e2000000ae9</UniqueId>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX51E45442AA234E479CFD21A1352AF27E">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local Color = {
+    RED = "Red",
+    BLUE = "Blue",
+    BEIGE = "Beige",
+    BLACK = "Black"
+}
+table.freeze(Color)
+
+return Color]]></ProtectedString>
+						<string name="ScriptGuid">{30ABB845-5BCB-487F-9874-81B6FC5B4EB3}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+						<string name="Name">Color</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+						<UniqueId name="UniqueId">10f8b191193fa0ec09c47e2000000aed</UniqueId>
+					</Properties>
+				</Item>
 			</Item>
 		</Item>
 	</Item>
@@ -24169,75 +24503,47 @@ end]]></ProtectedString>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Words = require(ReplicatedStorage.Shared.Words)
+local BoardModel = require(ReplicatedStorage.Shared.Models.Board)
 
 local BoardService = Knit.CreateService {
-	Name = "BoardService",
-	Client = {
-		CardRevealed = Knit.CreateSignal(),
-		
-		GetBoard = function(self, player)
-			return self.Server.CurrentBoard
-		end
-	},
+    Name = "BoardService",
+    Client = {
+    },
 }
 
-BoardService.CurrentBoard = {}
+BoardService.CurrentBoard = nil
 
-local function shuffle(t)
-	local newTable = table.clone(t)
-	for i = #t, 2, -1 do
-		local j = math.random(i)
-		newTable[i], newTable[j] = newTable[j], newTable[i]
-	end
-	return newTable
+-- US-2.2
+function BoardService:GenerateBoard(gameRound)
+    local shuffledWords = table.clone(Words)
+    for i = #shuffledWords, 2, -1 do
+        local j = math.random(i)
+        shuffledWords[i], shuffledWords[j] = shuffledWords[j], shuffledWords[i]
+    end
+
+    -- 1.10: b = Create(gr, words)
+    local board = BoardModel.new(gameRound, shuffledWords)
+    
+    -- 1.10.1 to 1.10.3: Loop 25 times
+    board:Generate_Cards(shuffledWords)
+    
+    -- 1.10.4: Assign_Colors
+    board:Assign_Colors(9, 8, 7, 1)
+    
+    self.CurrentBoard = board
+    return board
 end
 
-function BoardService:GenerateBoard()
-	local colors = {}
-	for _ = 1, 9 do table.insert(colors, "Red") end
-	for _ = 1, 8 do table.insert(colors, "Blue") end
-	for _ = 1, 7 do table.insert(colors, "Neutral") end
-	table.insert(colors, "Assassin")
-
-	local shuffledColors = shuffle(colors)
-	local shuffledWords = shuffle(Words)
-
-	local board = {}
-	for i = 1, 25 do
-		table.insert(board, {
-			Id = i,
-			Word = shuffledWords[i],
-			Color = shuffledColors[i],
-			IsRevealed = false 
-		})
-	end
-	
-	self.CurrentBoard = board
-	return board
-end
-
-function BoardService:RevealCard(cardId)
-	local targetCard = nil
-	for _, card in ipairs(self.CurrentBoard) do
-		if card.Id == cardId then
-			targetCard = card
-			break
-		end
-	end
-
-	if not targetCard or targetCard.IsRevealed then return nil end
-
-	targetCard.IsRevealed = true
-	self.Client.CardRevealed:FireAll(targetCard.Id, targetCard.Color)
-	return targetCard.Color
+function BoardService:GetActiveBoard()
+    return self.CurrentBoard
 end
 
 function BoardService:KnitInit()
-	self:GenerateBoard()
-	print("BoardService: Initialized")
+    print("BoardService: Initialized")
 end
 
-function BoardService:KnitStart() end
+function BoardService:KnitStart() 
+end
 
 return BoardService]]></ProtectedString>
 						<string name="ScriptGuid">{7DE92B83-F49A-4257-B22F-285ECEFD06AB}</string>
@@ -24255,127 +24561,152 @@ return BoardService]]></ProtectedString>
 					<Properties>
 						<Content name="LinkedSource"><null></null></Content>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
+local RoomModel = require(ReplicatedStorage.Shared.Models.Room)
+local PlayerModel = require(ReplicatedStorage.Shared.Models.Player)
+
+local TeamEnum = require(ReplicatedStorage.Shared.Enums.Team)
+local RoleEnum = require(ReplicatedStorage.Shared.Enums.Role)
+
 local RoomService = Knit.CreateService {
-	Name = "RoomService",
-	Client = {
-		RoomUpdate = Knit.CreateSignal(),
-		GameStarted = Knit.CreateSignal()
-	},
+    Name = "RoomService",
+    Client = {
+        RoomUpdate = Knit.CreateSignal(),
+        GameStarted = Knit.CreateSignal()
+    },
 }
 
-local activeRooms = {}
+local DataStore = {
+    ActiveRooms = {}
+}
 
-local function generateCode()
-	local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	local code = ""
-	for _ = 1, 4 do
-		local rand = math.random(1, #charset)
-		code = code .. string.sub(charset, rand, rand)
-	end
-	return code
+function DataStore:Check_Player_Status(player) return false end
+function DataStore:Check_Code(code) return self.ActiveRooms[code] ~= nil end
+function DataStore:Save_Room(room) self.ActiveRooms[room.Code] = room end
+function DataStore:Get_Room(code) return self.ActiveRooms[code] end
+function DataStore:Update_Room(room) self.ActiveRooms[room.Code] = room end
+
+function RoomService:Generate_4_Digit_Code()
+    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local code = ""
+    for _ = 1, 4 do
+        local rand = math.random(1, #charset)
+        code = code .. string.sub(charset, rand, rand)
+    end
+    return code
 end
 
-local function getRoomPlayers(room)
-	local players = {}
-	for player, _ in pairs(room.Players) do
-		if typeof(player) == "Instance" and player:IsA("Player") then
-			table.insert(players, player)
-		end
-	end
-	return players
+function RoomService:Display_message(msg) warn(msg) end
+
+function RoomService:Display_Lobby(room)
+    local slots = {}
+    for _, p in ipairs(room.Players) do
+        if p.Team and p.Role and p.Team ~= "None" and p.Role ~= "None" then
+            slots[p.Team .. p.Role] = p.UserName
+        end
+    end
+    
+    for _, p in ipairs(room.Players) do
+        local playerInstance = Players:GetPlayerByUserId(tonumber(p.UserId))
+        if playerInstance then
+            self.Client.RoomUpdate:Fire(playerInstance, slots, room.HostName)
+        end
+    end
 end
 
-function RoomService:CreateRoom(hostPlayer)
-	local code = generateCode()
-	while activeRooms[code] do code = generateCode() end
+-- US-1.1: Create Room
+function RoomService:CreateRoom(hostPlayer, difficulty, wordPack)
+    local inRoom = DataStore:Check_Player_Status(hostPlayer)
+    if inRoom then return nil end
 
-	local newRoom = {
-		Code = code,
-		Host = hostPlayer,
-		Players = { [hostPlayer] = true },
-		Slots = {
-			RedSpymaster = nil, RedOperative = nil,
-			BlueSpymaster = nil, BlueOperative = nil
-		},
-		State = "Waiting"
-	}
+    local code = self:Generate_4_Digit_Code()
+    while DataStore:Check_Code(code) do
+        code = self:Generate_4_Digit_Code()
+    end
 
-	activeRooms[code] = newRoom
-	print("ROOM MADE: " .. code)
-	return code
+    local r = RoomModel.new(code, difficulty, wordPack)
+    r:Set_State("Lobby")
+    r:Set_Host(hostPlayer)
+    
+    local hostModel = PlayerModel.new(hostPlayer, "None", "None")
+    r:Add_Member(hostModel)
+
+    DataStore:Save_Room(r)
+    self:Display_Lobby(r)
+    
+    return code
 end
 
-function RoomService:JoinRoom(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
-	room.Players[player] = true
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-	end
-	return true
+-- US-1.2: Join Room
+function RoomService:JoinRoom(player, code, team, role)
+    local r = DataStore:Get_Room(code)
+    if r == nil then return false end
+
+    local userIdStr = tostring(player.UserId)
+
+    if team and role and team ~= "None" and role ~= "None" then
+        for _, p in ipairs(r.Players) do
+            if p.UserId ~= userIdStr and p.Team == team and p.Role == role then
+                self:Display_message("Error: Slot already taken")
+                return false
+            end
+        end
+    end
+
+    local existingPlayerModel = nil
+    for _, p in ipairs(r.Players) do
+        if p.UserId == userIdStr then
+            existingPlayerModel = p
+            break
+        end
+    end
+
+    if existingPlayerModel then
+        if existingPlayerModel.Team == team and existingPlayerModel.Role == role and team ~= "None" then
+            r:Assign_Team(existingPlayerModel, "None")
+            r:Assign_Role(existingPlayerModel, "None")
+        else
+            r:Assign_Team(existingPlayerModel, team)
+            r:Assign_Role(existingPlayerModel, role)
+        end
+        r:Update_Player_List(existingPlayerModel)
+    else
+        if r:Get_Player_Count() >= 4 then return false end
+        local pModel = PlayerModel.new(player, team, role)
+        r:Add_Member(pModel)
+    end
+
+    DataStore:Update_Room(r)
+    self:Display_Lobby(r)
+    
+    return true
 end
 
-function RoomService:JoinSlot(player, code, slotName)
-	local room = activeRooms[code]
-	if not room then return false end
-
-	if room.Slots[slotName] == player.Name then
-		room.Slots[slotName] = nil
-	else
-		for slot, owner in pairs(room.Slots) do
-			if owner == player.Name then room.Slots[slot] = nil end
-		end
-		if room.Slots[slotName] == nil then
-			room.Slots[slotName] = player.Name
-		end
-	end
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.RoomUpdate:FireFor(recipients, room.Slots, room.Host.Name)
-	end
-	return true
+function RoomService:LeaveRoom(player, code)
+    local r = DataStore:Get_Room(code)
+    if not r then return false end
+    
+    local userIdStr = tostring(player.UserId)
+    for i, p in ipairs(r.Players) do
+        if p.UserId == userIdStr then
+            table.remove(r.Players, i)
+            break
+        end
+    end
+    
+    DataStore:Update_Room(r)
+    self:Display_Lobby(r)
+    return true
 end
 
-function RoomService:StartGame(player, code)
-	local room = activeRooms[code]
-	if not room then return false end
-	if room.Host ~= player then return false end
-
-	room.State = "Playing"
-	print("RoomService: STARTING GAME...")
-	
-	-- [[ CRITICAL: WAKE UP GAMESERVICE ]] --
-	local GameService = Knit.GetService("GameService")
-	if GameService then
-		print("RoomService: Calling GameService:StartGame()")
-		GameService:StartGame() 
-	else
-		warn("RoomService: GameService NOT FOUND")
-	end
-	
-	local recipients = getRoomPlayers(room)
-	if #recipients > 0 then
-		self.Client.GameStarted:FireFor(recipients)
-	end
-	
-	return true
-end
-
--- [[ FIX: EXPLICITLY DEFINE GETROOM FOR TESTS ]] --
-function RoomService:GetRoom(code)
-	return activeRooms[code]
-end
+function RoomService:GetRoom(code) return DataStore:Get_Room(code) end
 
 -- CLIENT METHODS
-function RoomService.Client:CreateRoom(player) return self.Server:CreateRoom(player) end
-function RoomService.Client:JoinRoom(player, code) return self.Server:JoinRoom(player, code) end
-function RoomService.Client:JoinSlot(player, code, slot) return self.Server:JoinSlot(player, code, slot) end
-function RoomService.Client:StartGame(player, code) return self.Server:StartGame(player, code) end
+function RoomService.Client:CreateRoom(player, diff, pack) return self.Server:CreateRoom(player, diff, pack) end
+function RoomService.Client:JoinRoom(player, code, t, r) return self.Server:JoinRoom(player, code, t, r) end
+function RoomService.Client:LeaveRoom(player, code) return self.Server:LeaveRoom(player, code) end
 
 return RoomService]]></ProtectedString>
 						<string name="ScriptGuid">{F029B1CF-BF7C-4681-BB42-3661781DE700}</string>
@@ -24395,159 +24726,262 @@ return RoomService]]></ProtectedString>
 						<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
-local TURN_DURATION = 60
-local ROLES = {
-	SPYMASTER = "RedSpymaster",
-	OPERATIVE = "RedOperative",
-}
+local GameRoundModel = require(ReplicatedStorage.Shared.Models.GameRound)
+local BoardModel = require(ReplicatedStorage.Shared.Models.Board) 
+local Dictionary = require(ReplicatedStorage.Shared.Words) 
+local TeamEnum = require(ReplicatedStorage.Shared.Enums.Team)
+local ColorEnum = require(ReplicatedStorage.Shared.Enums.Color)
+local RoleEnum = require(ReplicatedStorage.Shared.Enums.Role)
 
 local GameService = Knit.CreateService({
-	Name = "GameService",
-	Client = {
-		TurnChanged = Knit.CreateSignal(),
-		TimerUpdate = Knit.CreateSignal(),
-		ScoreUpdate = Knit.CreateSignal(),
-		ClueGiven = Knit.CreateSignal(),
-		GameOver = Knit.CreateSignal(),
-		
-		-- [[ 1. GET STATE ]] --
-		GetState = function(self, player)
-			local server = self.Server
-			return {
-				Turn = server.CurrentTurn,
-				Time = math.ceil(server.TimeRemaining or 0),
-				Score = server.Score or 0,
-				Clue = server.CurrentClue,
-				Winner = server.Winner -- Send winner if game is over
-			}
-		end,
-
-		GiveClue = function(self, player, word, number)
-			local server = self.Server
-			if server.Winner then return end -- No clues if game over
-
-			if not server.IsGameRunning then server:StartGame() end
-			if server.CurrentTurn ~= ROLES.SPYMASTER then return end
-
-			server.CurrentClue = { Word = word, Number = number }
-			server.Client.ClueGiven:FireAll(word, number)
-			server:SetTurn(ROLES.OPERATIVE)
-		end,
-
-		-- [[ 3. GUESS WORD ]] --
-		GuessWord = function(self, player, cardId)
-			local server = self.Server
-			if server.Winner then return end -- No guessing if game over
-			if server.CurrentTurn ~= ROLES.OPERATIVE then return end
-
-			local revealedColor = server.BoardService:RevealCard(cardId)
-			if not revealedColor then return end 
-
-			-- [[ WIN/LOSS LOGIC ]] --
-			if revealedColor == "Assassin" then
-				-- Instant Loss: If Red hits it, Blue Wins
-				server:EndGame("Blue")
-				return
-			
-			elseif revealedColor == "Red" then
-				server.Score += 1
-				server.CurrentGuesses += 1
-				server.CardsLeft.Red -= 1
-				server.Client.ScoreUpdate:FireAll(server.Score)
-				
-				if server.CardsLeft.Red <= 0 then
-					server:EndGame("Red")
-					return
-				end
-				
-			elseif revealedColor == "Blue" then
-				-- Hit Enemy Card -> Turn Ends
-				server.CardsLeft.Blue -= 1
-				if server.CardsLeft.Blue <= 0 then
-					server:EndGame("Blue")
-					return
-				end
-				server:SetTurn(ROLES.SPYMASTER)
-				
-			elseif revealedColor == "Neutral" then
-				-- Hit Civilian -> Turn Ends
-				server:SetTurn(ROLES.SPYMASTER)
-			end
-		end
-	},
+    Name = "GameService",
+    Client = {
+        GameStarted = Knit.CreateSignal(),
+        TurnChanged = Knit.CreateSignal(),
+        TimerUpdate = Knit.CreateSignal(),
+        ScoreUpdate = Knit.CreateSignal(),
+        ClueGiven = Knit.CreateSignal(),
+        GameOver = Knit.CreateSignal(),
+        CardColorDisplayed = Knit.CreateSignal(),
+        SecretBoardData = Knit.CreateSignal(),
+        LogsUpdated = Knit.CreateSignal(),
+        ErrorMessage = Knit.CreateSignal(), 
+    },
 })
 
-function GameService:KnitInit()
-	self.CurrentTurn = nil
-	self.TimeRemaining = 0
-	self.Score = 0
-	self.IsGameRunning = false
-	self.Winner = nil
-	self.CurrentGuesses = 0
-	self.CurrentClue = { Word = "", Number = 0 }
-	self.CardsLeft = { Red = 9, Blue = 8 } -- Standard Codenames counts
-	
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			if self.IsGameRunning and self.TimeRemaining > 0 and not self.Winner then
-				self.TimeRemaining = self.TimeRemaining - 1
-				self.Client.TimerUpdate:FireAll(self.TimeRemaining)
-				if self.TimeRemaining <= 0 then self:HandleTimeout() end
-			end
-		end
-	end)
+local DataStore = {
+    ActiveRound = nil,
+    ActiveBoard = nil
+}
+
+function DataStore:Get_Room(code) return Knit.GetService("RoomService"):GetRoom(code) end
+function DataStore:Save_Game_State(r, gr, b) self.ActiveRound = gr; self.ActiveBoard = b end
+function DataStore:Get_Active_Round() return self.ActiveRound end
+function DataStore:Get_Active_Board() return self.ActiveBoard end
+function DataStore:Get_Room_State(roomId) return self.ActiveRound end
+function DataStore:Save_State(gr, b) self.ActiveRound = gr; self.ActiveBoard = b end
+function DataStore:Save_Round_State(gr) self.ActiveRound = gr end
+
+function GameService:KnitStart() end
+
+-- ==========================================
+-- SYSTEM HELPERS & DISPLAY CALLS
+-- ==========================================
+function GameService:Display_message(player, msg) 
+    if player then
+        self.Client.ErrorMessage:Fire(player, msg)
+    else
+        warn(msg) 
+    end
 end
 
-function GameService:KnitStart()
-	self.BoardService = Knit.GetService("BoardService")
+function GameService:Display_Board(b) print("Board UI Update") end
+
+function GameService:Display_CardColor(cardId, color) 
+    self.Client.CardColorDisplayed:FireAll(cardId, color) 
 end
 
-function GameService:StartGame()
-	print("GameService: STARTING FRESH GAME")
-	self.IsGameRunning = true
-	self.Winner = nil
-	self.Score = 0
-	self.CardsLeft = { Red = 9, Blue = 8 }
-	
-	self.BoardService:GenerateBoard()
-	
-	self.CurrentClue = { Word = "", Number = 0 }
-	self.Client.ClueGiven:FireAll("", 0)
-	
-	-- Notify clients to clear Game Over screens
-	self.Client.GameOver:FireAll(nil) 
-	
-	self:SetTurn(ROLES.SPYMASTER)
+function GameService:Display_TimerUpdate(gr) self.Client.TimerUpdate:FireAll(gr.TurnTimer) end
+function GameService:Display_SecretBoard(data) self.Client.SecretBoardData:FireAll(data) end
+function GameService:Display_Logs() self.Client.LogsUpdated:FireAll() end
+
+function GameService:Display_TurnUpdate(gr)
+    self.Client.TurnChanged:FireAll(gr:Get_Turn_String())
 end
 
-function GameService:EndGame(winningTeam)
-	print("GAME OVER! Winner:", winningTeam)
-	self.Winner = winningTeam
-	self.IsGameRunning = false
-	self.Client.GameOver:FireAll(winningTeam)
+function GameService:Display_ScoreUpdate(gr)
+    self.Client.ScoreUpdate:FireAll(gr.ScoreRed, gr.ScoreBlue)
 end
 
-function GameService:SetTurn(role)
-	self.CurrentTurn = role
-	self.TimeRemaining = TURN_DURATION
-	self.CurrentGuesses = 0 
-	self.Client.TurnChanged:FireAll(role)
-	self.Client.ScoreUpdate:FireAll(self.Score)
-	
-	if role == ROLES.SPYMASTER then
-		self.CurrentClue = { Word = "", Number = 0 }
-		self.Client.ClueGiven:FireAll("", 0)
-	end
+function GameService:Cancel_Timer(roomId) print("Timer Cancelled") end
+function GameService:Reset_Turn_Timer(gr) gr.TurnTimer = 60 end
+function GameService:Lock_Spymaster_Input(player) print("Locked input for", player) end
+
+function GameService:Check_String_Format(word)
+    return not string.find(word, " ")
 end
 
-function GameService:HandleTimeout()
-	if self.Winner then return end
-	if self.CurrentTurn == ROLES.SPYMASTER then
-		self:SetTurn(ROLES.OPERATIVE)
-	else
-		self:SetTurn(ROLES.SPYMASTER)
-	end
+
+-- ==========================================
+-- US-2.1 / 2.2: Start Game
+-- ==========================================
+function GameService.Client:StartGame(player, code)
+    local selfServer = self.Server
+    
+    local r = DataStore:Get_Room(code)
+    if r == nil then
+        selfServer:Display_message(player, "Error: Room not found")
+        return false
+    end
+    
+    local isHost = r:Check_Host(player)
+    if isHost == false then
+        selfServer:Display_message(player, "Error: Only the Host can start")
+        return false
+    end
+    
+    local count = r:Get_Player_Count()
+    if count < 2 or count > 4 then
+        selfServer:Display_message(player, "Error: Need 2-4 players")
+        return false
+    end
+    
+    r:Set_State("Playing")
+    
+    local gr = GameRoundModel.new()
+    gr:Associate_Room(r)
+    
+    local words = Dictionary:Get_Random_Words(25)
+    local b = BoardModel.new(gr, words)
+    b:Generate_Cards(words)
+    b:Assign_Colors(9, 8, 7, 1)
+    
+    DataStore:Save_Game_State(r, gr, b)
+    
+    selfServer:Display_Board(b)
+    self.GameStarted:FireAll() 
+    
+    selfServer:Display_TurnUpdate(gr)
+    selfServer:Display_ScoreUpdate(gr)
+    
+    task.spawn(function()
+        while gr and gr.State ~= "GameOver" do
+            task.wait(1)
+            gr.TurnTimer = gr.TurnTimer - 1
+            if gr.TurnTimer <= 0 then
+                selfServer:TriggerTimeExpired(code)
+            else
+                selfServer:Display_TimerUpdate(gr)
+            end
+        end
+    end)
+    
+    return true
+end
+
+
+-- ==========================================
+-- US-3.2: Request Secret Board 
+-- ==========================================
+function GameService.Client:RequestSecretBoard(player)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    
+    if gr == nil or gr.State == "GameOver" then
+        selfServer:Display_message(player, "Error: Game is not active")
+        return
+    end
+
+    local b = DataStore:Get_Active_Board()
+    if not b then return end
+    
+    local secretBoardData = b:Get_Secret_Board_Data()
+    self.SecretBoardData:Fire(player, secretBoardData)
+end
+
+
+-- ==========================================
+-- US-4.1: Select Card 
+-- ==========================================
+function GameService.Client:SelectCard(player, cardId)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    local validTurn = gr:Validate_Operative_Turn(player)
+    
+    if validTurn == false or gr.State ~= "Guessing Phase" then
+        selfServer:Display_message(player, "Error: Not your active turn")
+        return
+    end
+    
+    local b = DataStore:Get_Active_Board()
+    local c = b:Get_Card(cardId)
+    local revealed = c:Get_IsRevealed()
+    
+    if revealed == true then
+        selfServer:Display_message(player, "Error: Card already revealed")
+        return
+    end
+    
+    c:Set_IsRevealed(true)
+    local color = c:Get_RealColor()
+    
+    if color == ColorEnum.BLACK then
+        gr:Set_State("GameOver")
+        local opposingTeam = (gr.CurrentTurn == TeamEnum.RED) and TeamEnum.BLUE or TeamEnum.RED
+        gr:Set_Winner(opposingTeam)
+        self.GameOver:FireAll(tostring(opposingTeam))
+    elseif color == gr.CurrentTurn then
+        gr:Increment_Score()
+        selfServer:Display_ScoreUpdate(gr)
+    else 
+        gr:Switch_Turn()
+        gr:Set_State("Clue Phase")
+        selfServer:Reset_Turn_Timer(gr)
+        selfServer:Display_TurnUpdate(gr)
+    end
+    
+    DataStore:Save_State(gr, b)
+    selfServer:Display_CardColor(cardId, color)
+end
+
+
+-- ==========================================
+-- US-4.3: Submit Clue
+-- ==========================================
+function GameService.Client:SubmitClue(player, word, number)
+    local selfServer = self.Server
+    local gr = DataStore:Get_Active_Round()
+    
+    local validTurn = gr:Validate_Spymaster_Turn(player)
+    if validTurn == false or gr.State ~= "Clue Phase" then
+        selfServer:Display_message(player, "Error: Not your turn to give a clue")
+        return
+    end
+
+    local formatValid = selfServer:Check_String_Format(word)
+    if formatValid == false then
+        selfServer:Display_message(player, "Error: Clue must be a single word (no spaces)")
+        return
+    end
+
+    local b = DataStore:Get_Active_Board()
+    local isCheating = b:Check_Word_Conflict(word)
+    if isCheating == true then
+        selfServer:Display_message(player, "Error: Illegal Clue - Word is on the board")
+        return
+    end
+
+    gr:Append_ClueLog(word, number)
+    gr:Set_State("Guessing Phase")
+    gr.ActiveRole = RoleEnum.OPERATIVE
+
+    selfServer:Lock_Spymaster_Input(player)
+    selfServer:Reset_Turn_Timer(gr)
+    DataStore:Save_Round_State(gr)
+    
+    selfServer:Display_TurnUpdate(gr)
+    selfServer:Display_Logs()
+    self.ClueGiven:FireAll(word, number)
+end
+
+
+-- ==========================================
+-- US-4.2: Timer System
+-- ==========================================
+function GameService:TriggerTimeExpired(roomId)
+    local gr = DataStore:Get_Room_State(roomId)
+    if gr == nil or gr.State == "GameOver" then
+        self:Cancel_Timer(roomId)
+        return
+    end
+
+    gr:Switch_Turn()
+    gr:Set_State("Clue Phase")
+    self:Reset_Turn_Timer(gr)
+    DataStore:Save_Round_State(gr)
+    
+    self:Display_TurnUpdate(gr)
+    self:Display_TimerUpdate(gr)
 end
 
 return GameService]]></ProtectedString>
@@ -26888,6 +27322,18 @@ X09yaWdpbmFsVGVjaG5vbG9neU9uRmlsZUxvYWQEAQAAAA==]]></BinaryString>
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 			<UniqueId name="UniqueId">725ee9f51b0abd140985642000001360</UniqueId>
+		</Properties>
+	</Item>
+	<Item class="VirtualInputManager" referent="RBXEECF7BA5086E4211915A88847D98EB21">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
+			<string name="Name">VirtualInputManager</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+			<UniqueId name="UniqueId">10f8b191193fa0ec09c47e20000004a6</UniqueId>
 		</Properties>
 	</Item>
 	<SharedStrings>
