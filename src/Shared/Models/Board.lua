@@ -77,4 +77,15 @@ function Board:Get_Secret_Board_Data()
     return data
 end
 
+-- US-5.3 Helper: Count how many cards a team still needs to find
+function Board:Get_Remaining_Cards(colorEnum)
+    local count = 0
+    for _, card in ipairs(self.Cards) do
+        if card.RealColor == colorEnum and not card.IsRevealed then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 return Board

@@ -217,6 +217,13 @@ function GameService.Client:SelectCard(player, cardId)
     elseif color == gr.CurrentTurn then
         gr:Increment_Score()
         selfServer:Display_ScoreUpdate(gr)
+        
+        local remaining = b:Get_Remaining_Cards(color)
+        if remaining == 0 then
+            gr:Set_Winner(color)
+            selfServer:SaveGameStats(gr)
+            self.GameOver:FireAll(tostring(color))
+        end
     else 
         gr:Switch_Turn()
         gr:Set_State("Clue Phase")
@@ -278,7 +285,13 @@ function GameService:TriggerTimeExpired(roomId)
     end
 
     gr:Switch_Turn()
-    gr:Set_State("Clue Phase")
+    local RoleEnum = require(game:GetService("ReplicatedStorage").Shared.Enums.Role)
+    if gr.ActiveRole == RoleEnum.OPERATIVE then
+        gr:Set_State("Guessing Phase")
+        
+    else
+        gr:Set_State("Clue Phase")
+    end
     self:Reset_Turn_Timer(gr)
     DataStore:Save_Round_State(gr)
     

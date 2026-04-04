@@ -38,8 +38,9 @@ function GameController:MountLobby()
     local RoomService = Knit.GetService("RoomService")
 
     local element = Roact.createElement(Lobby, {
-        OnCreate = function()
-            RoomService:CreateRoom("Normal", "Standard"):andThen(function(code)
+        -- US-5.1: Now accepts dynamic difficulty and wordpack from the modal
+        OnCreate = function(difficulty, wordPack)
+            RoomService:CreateRoom(difficulty, wordPack):andThen(function(code)
                 if code then
                     self.CurrentRoomCode = code
                     self:MountWaitingRoom()
