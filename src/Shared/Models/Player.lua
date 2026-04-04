@@ -8,7 +8,12 @@ function PlayerModel.new(robloxPlayer, team, role)
     self.UserName = robloxPlayer.Name
     self.Team = team
     self.Role = role
+    
+    -- US-5.3: Persistence & Economy Additions
     self.Coins = 0
+    self.Wins = 0
+    self.Streak = 0
+    
     return self
 end
 
@@ -18,6 +23,20 @@ end
 
 function PlayerModel:GetFullName()
     return tostring(self.Team) .. tostring(self.Role)
+end
+
+-- US-5.3: Economy Methods
+function PlayerModel:Add_Coins(amount)
+    self.Coins = self.Coins + amount
+end
+
+function PlayerModel:Increment_Win()
+    self.Wins = self.Wins + 1
+    self.Streak = self.Streak + 1
+end
+
+function PlayerModel:Reset_Streak()
+    self.Streak = 0
 end
 
 return PlayerModel

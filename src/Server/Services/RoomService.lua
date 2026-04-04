@@ -26,6 +26,13 @@ function DataStore:Save_Room(room) self.ActiveRooms[room.Code] = room end
 function DataStore:Get_Room(code) return self.ActiveRooms[code] end
 function DataStore:Update_Room(room) self.ActiveRooms[room.Code] = room end
 
+-- US-5.2: Disconnect Handling Hook
+function RoomService:KnitStart()
+    Players.PlayerRemoving:Connect(function(player)
+        self:HandlePlayerDisconnect(player)
+    end)
+end
+
 function RoomService:Generate_4_Digit_Code()
     local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     local code = ""
@@ -127,16 +134,28 @@ function RoomService:LeaveRoom(player, code)
     if not r then return false end
     
     local userIdStr = tostring(player.UserId)
-    for i, p in ipairs(r.Players) do
-        if p.UserId == userIdStr then
-            table.remove(r.Players, i)
-            break
-        end
-    end
+    r:Remove_Member(userIdStr) 
     
     DataStore:Update_Room(r)
     self:Display_Lobby(r)
     return true
+end
+
+-- US-5.2: Disconnect Logic
+function RoomService:HandlePlayerDisconnect(player)
+    local userIdStr = tostring(player.UserId)
+    for code, r in pairs(DataStore.ActiveRooms) do
+        for _, p in ipairs(r.Players) do
+            if p.UserId == userIdStr then
+                if r.State == "Playing" then
+                    Knit.GetService("GameService"):AbortActiveGame(code, player.Name)
+                else
+                    self:LeaveRoom(player, code)
+                end
+                return
+            end
+        end
+    end
 end
 
 function RoomService:GetRoom(code) return DataStore:Get_Room(code) end

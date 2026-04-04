@@ -73,6 +73,28 @@ function GameService:Check_String_Format(word)
     return not string.find(word, " ")
 end
 
+-- US-5.3: Player Persistence & Economy
+function GameService:SaveGameStats(gr)
+    if gr and gr.Room then
+        for _, p in ipairs(gr.Room.Players) do
+            print("Saving DB -> " .. p.UserName .. ": Coins=" .. p.Coins .. " Wins=" .. p.Wins)
+        end
+    end
+end
+
+-- US-5.2: Disconnect Handling
+function GameService:AbortActiveGame(roomId, disconnectedName)
+    local gr = DataStore:Get_Room_State(roomId)
+    if not gr or gr.State == "GameOver" then return end
+
+    gr:AbortGame()
+    self:Cancel_Timer(roomId)
+
+    self:Display_message(nil, "Game Aborted: " .. disconnectedName .. " disconnected.")
+    self.Client.GameOver:FireAll("Aborted")
+    
+    self:SaveGameStats(gr)
+end
 
 -- ==========================================
 -- US-2.1 / 2.2: Start Game
@@ -99,14 +121,23 @@ function GameService.Client:StartGame(player, code)
     end
     
     r:Set_State("Playing")
-    
     local gr = GameRoundModel.new()
     gr:Associate_Room(r)
     
-    local words = Dictionary:Get_Random_Words(25)
+    -- US-5.1: (WordPack & Difficulty)
+    local pack = r.WordPack or "Standard"
+    local words = Dictionary:Get_Random_Words(25, pack)
     local b = BoardModel.new(gr, words)
     b:Generate_Cards(words)
-    b:Assign_Colors(9, 8, 7, 1)
+    
+    local diff = r.Difficulty or "Normal"
+    if diff == "Hard" then
+        b:Assign_Colors(9, 8, 6, 2) -- Hard mode: 2 Assassins
+    elseif diff == "Easy" then
+        b:Assign_Colors(9, 8, 8, 0) -- Easy mode: 0 Assassins
+    else
+        b:Assign_Colors(9, 8, 7, 1) -- Normal mode: 1 Assassin
+    end
     
     DataStore:Save_Game_State(r, gr, b)
     
@@ -117,7 +148,7 @@ function GameService.Client:StartGame(player, code)
     selfServer:Display_ScoreUpdate(gr)
     
     task.spawn(function()
-        while gr and gr.State ~= "GameOver" do
+        while gr and gr.State ~= "GameOver" and gr.State ~= "Aborted" do
             task.wait(1)
             gr.TurnTimer = gr.TurnTimer - 1
             if gr.TurnTimer <= 0 then
@@ -131,7 +162,6 @@ function GameService.Client:StartGame(player, code)
     return true
 end
 
-
 -- ==========================================
 -- US-3.2: Request Secret Board 
 -- ==========================================
@@ -139,7 +169,7 @@ function GameService.Client:RequestSecretBoard(player)
     local selfServer = self.Server
     local gr = DataStore:Get_Active_Round()
     
-    if gr == nil or gr.State == "GameOver" then
+    if gr == nil or gr.State == "GameOver" or gr.State == "Aborted" then
         selfServer:Display_message(player, "Error: Game is not active")
         return
     end
@@ -150,7 +180,6 @@ function GameService.Client:RequestSecretBoard(player)
     local secretBoardData = b:Get_Secret_Board_Data()
     self.SecretBoardData:Fire(player, secretBoardData)
 end
-
 
 -- ==========================================
 -- US-4.1: Select Card 
@@ -178,10 +207,13 @@ function GameService.Client:SelectCard(player, cardId)
     local color = c:Get_RealColor()
     
     if color == ColorEnum.BLACK then
-        gr:Set_State("GameOver")
         local opposingTeam = (gr.CurrentTurn == TeamEnum.RED) and TeamEnum.BLUE or TeamEnum.RED
         gr:Set_Winner(opposingTeam)
+        
+        -- US-5.3: Save Stats
+        selfServer:SaveGameStats(gr)
         self.GameOver:FireAll(tostring(opposingTeam))
+        
     elseif color == gr.CurrentTurn then
         gr:Increment_Score()
         selfServer:Display_ScoreUpdate(gr)
@@ -195,7 +227,6 @@ function GameService.Client:SelectCard(player, cardId)
     DataStore:Save_State(gr, b)
     selfServer:Display_CardColor(cardId, color)
 end
-
 
 -- ==========================================
 -- US-4.3: Submit Clue
@@ -236,13 +267,12 @@ function GameService.Client:SubmitClue(player, word, number)
     self.ClueGiven:FireAll(word, number)
 end
 
-
 -- ==========================================
 -- US-4.2: Timer System
 -- ==========================================
 function GameService:TriggerTimeExpired(roomId)
     local gr = DataStore:Get_Room_State(roomId)
-    if gr == nil or gr.State == "GameOver" then
+    if gr == nil or gr.State == "GameOver" or gr.State == "Aborted" then
         self:Cancel_Timer(roomId)
         return
     end

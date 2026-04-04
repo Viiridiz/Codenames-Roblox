@@ -15,12 +15,10 @@ function GameRound.new()
     return self
 end
 
--- US-2.1
 function GameRound:Associate_Room(room)
     self.Room = room
 end
 
--- US-4.1
 function GameRound:Validate_Operative_Turn(player)
     local RoleEnum = require(script.Parent.Parent.Enums.Role)
     local pModel = nil
@@ -32,7 +30,6 @@ function GameRound:Validate_Operative_Turn(player)
     return pModel.Role == RoleEnum.OPERATIVE and pModel.Team == self.CurrentTurn
 end
 
--- US-4.3
 function GameRound:Validate_Spymaster_Turn(player)
     local RoleEnum = require(script.Parent.Parent.Enums.Role)
     local pModel = nil
@@ -44,7 +41,6 @@ function GameRound:Validate_Spymaster_Turn(player)
     return pModel.Role == RoleEnum.SPYMASTER and pModel.Team == self.CurrentTurn
 end
 
--- US-4.1
 function GameRound:Increment_Score()
     local TeamEnum = require(script.Parent.Parent.Enums.Team)
     if self.CurrentTurn == TeamEnum.RED then
@@ -70,9 +66,37 @@ function GameRound:Switch_Turn()
     self.TurnTimer = 60
 end
 
+-- US-5.3: Upgraded to distribute Economy Rewards
 function GameRound:Set_Winner(teamEnum)
     self.Winner = teamEnum
     self.State = "GameOver"
+    
+    if self.Room then
+        for _, p in ipairs(self.Room.Players) do
+            if p.Team == teamEnum then
+                p:Increment_Win()
+                p:Add_Coins(50)
+            elseif p.Team ~= "None" then
+                p:Reset_Streak()
+                p:Add_Coins(10)
+            end
+        end
+    end
+end
+
+-- US-5.2: Disconnect Handling
+function GameRound:AbortGame()
+    self.State = "Aborted"
+    self.Winner = nil
+    
+    -- Compensate players
+    if self.Room then
+        for _, p in ipairs(self.Room.Players) do
+             if p.Team ~= "None" then
+                 p:Add_Coins(25) 
+             end
+        end
+    end
 end
 
 function GameRound:Append_ClueLog(word, number)

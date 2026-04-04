@@ -1,3 +1,5 @@
-local Team = { RED = "Red", BLUE = "Blue" }
+local Team = {
+     RED = "Red", 
+     BLUE = "Blue" }
 table.freeze(Team)
 return Team

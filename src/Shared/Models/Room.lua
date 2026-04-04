@@ -21,6 +21,16 @@ function Room:Add_Member(playerModel)
     table.insert(self.Players, playerModel)
 end
 
+-- US-5.2: Disconnect Handling
+function Room:Remove_Member(userIdStr)
+    for i, p in ipairs(self.Players) do
+        if p.UserId == userIdStr then
+            table.remove(self.Players, i)
+            break
+        end
+    end
+end
+
 function Room:Get_Player_Count()
     return #self.Players
 end
@@ -33,7 +43,6 @@ function Room:Check_Host(robloxPlayer)
     return self.HostName == robloxPlayer.Name
 end
 
--- US-1.2: New required methods
 function Room:Assign_Role(playerModel, roleEnum)
     playerModel.Role = roleEnum
 end
