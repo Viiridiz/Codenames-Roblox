@@ -39,4 +39,11 @@ function PlayerModel:Reset_Streak()
     self.Streak = 0
 end
 
+function PlayerModel:LoadData(savedData)
+    if not savedData then return end
+    self.Coins = savedData.Coins or 0
+    self.Wins = savedData.Wins or 0
+    self.Streak = savedData.Streak or 0
+end
+
 return PlayerModel

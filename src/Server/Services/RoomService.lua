@@ -21,6 +21,7 @@ local DataStore = {
 }
 
 function DataStore:Check_Player_Status(player) return false end
+function DataStore:Remove_Room(code) self.ActiveRooms[code] = nil end
 function DataStore:Check_Code(code) return self.ActiveRooms[code] ~= nil end
 function DataStore:Save_Room(room) self.ActiveRooms[room.Code] = room end
 function DataStore:Get_Room(code) return self.ActiveRooms[code] end
@@ -49,7 +50,8 @@ function RoomService:Display_Lobby(room)
     local slots = {}
     for _, p in ipairs(room.Players) do
         if p.Team and p.Role and p.Team ~= "None" and p.Role ~= "None" then
-            slots[p.Team .. p.Role] = p.UserName
+            local streakStr = (p.Streak and p.Streak > 0) and (" 🔥" .. tostring(p.Streak)) or ""
+            slots[p.Team .. p.Role] = p.UserName .. streakStr
         end
     end
     
@@ -62,7 +64,7 @@ function RoomService:Display_Lobby(room)
 end
 
 -- US-1.1: Create Room
-function RoomService:CreateRoom(hostPlayer, difficulty, wordPack)
+function RoomService:CreateRoom(hostPlayer, difficulty, wordPack, isPublic)
     local inRoom = DataStore:Check_Player_Status(hostPlayer)
     if inRoom then return nil end
 
@@ -71,11 +73,13 @@ function RoomService:CreateRoom(hostPlayer, difficulty, wordPack)
         code = self:Generate_4_Digit_Code()
     end
 
-    local r = RoomModel.new(code, difficulty, wordPack)
+    local r = RoomModel.new(code, difficulty, wordPack, isPublic)
     r:Set_State("Lobby")
     r:Set_Host(hostPlayer)
     
     local hostModel = PlayerModel.new(hostPlayer, "None", "None")
+    local savedData = Knit.GetService("DataService"):LoadPlayerData(hostPlayer)
+    hostModel:LoadData(savedData)
     r:Add_Member(hostModel)
 
     DataStore:Save_Room(r)
@@ -120,6 +124,10 @@ function RoomService:JoinRoom(player, code, team, role)
     else
         if r:Get_Player_Count() >= 4 then return false end
         local pModel = PlayerModel.new(player, team, role)
+        
+        local savedData = Knit.GetService("DataService"):LoadPlayerData(player)
+        pModel:LoadData(savedData)
+        
         r:Add_Member(pModel)
     end
 
@@ -135,9 +143,15 @@ function RoomService:LeaveRoom(player, code)
     
     local userIdStr = tostring(player.UserId)
     r:Remove_Member(userIdStr) 
+
+    if r:Get_Player_Count() == 0 then
+        print("Room " .. code .. " is empty. Closing...")
+        DataStore:Remove_Room(code) 
+    else
+        DataStore:Update_Room(r)
+        self:Display_Lobby(r)
+    end
     
-    DataStore:Update_Room(r)
-    self:Display_Lobby(r)
     return true
 end
 
@@ -160,8 +174,18 @@ end
 
 function RoomService:GetRoom(code) return DataStore:Get_Room(code) end
 
+function RoomService.Client:GetPublicRooms(player)
+    local rooms = {}
+    for _, r in pairs(DataStore.ActiveRooms) do
+        if r.IsPublic and r.State == "Lobby" then
+            table.insert(rooms, r:GetRoomData())
+        end
+    end
+    return rooms
+end
+
 -- CLIENT METHODS
-function RoomService.Client:CreateRoom(player, diff, pack) return self.Server:CreateRoom(player, diff, pack) end
+function RoomService.Client:CreateRoom(player, diff, pack, isPublic) return self.Server:CreateRoom(player, diff, pack, isPublic) end
 function RoomService.Client:JoinRoom(player, code, t, r) return self.Server:JoinRoom(player, code, t, r) end
 function RoomService.Client:LeaveRoom(player, code) return self.Server:LeaveRoom(player, code) end
 

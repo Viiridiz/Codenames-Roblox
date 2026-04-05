@@ -28,6 +28,11 @@ function AnimatedSlot:init()
 
     self.onActivate = function()
         if self.props.Disabled then return end
+        
+        pcall(function() 
+            require(game:GetService("ReplicatedStorage").Packages.Knit).GetController("SoundController"):Play("Click") 
+        end)
+
         local scale = self.scaleRef:getValue()
         if scale then
             local tDown = TweenService:Create(scale, TweenInfo.new(0.05), { Scale = 0.95 })

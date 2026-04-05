@@ -77,10 +77,15 @@ end
 
 function Card:didUpdate(prevProps)
     if self.props.IsRevealed and not prevProps.IsRevealed then
+        local SoundController = require(ReplicatedStorage.Packages.Knit).GetController("SoundController")
+        
         if not self.props.IsSpymaster then
             local myTeamColor = (self.props.MyTeam == "Red") and "Red" or "Blue"
             if self.props.Color ~= myTeamColor then
+                SoundController:Play("Wrong")
                 self.shake()
+            else
+                SoundController:Play("Correct")
             end
         end
     end

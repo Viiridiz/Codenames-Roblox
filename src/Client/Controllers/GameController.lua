@@ -10,6 +10,28 @@ local Board = require(script.Parent.Parent.Components.Board.Board)
 local GameController = Knit.CreateController { Name = "GameController" }
 
 function GameController:KnitStart()
+
+    local TextChatService = game:GetService("TextChatService")
+    TextChatService.OnIncomingMessage = function(message)
+        local props = Instance.new("TextChatMessageProperties")
+        if message.TextSource then
+            local player = game:GetService("Players"):GetPlayerByUserId(message.TextSource.UserId)
+            if player then
+                local tag = player:GetAttribute("EquippedTag")
+                if tag then
+                    local color = "#FFFFFF"
+                    if tag == "NEON TAG" then color = "#9b59b6"
+                    elseif tag == "GOLD TAG" then color = "#f1c40f"
+                    elseif tag == "RUBY TAG" then color = "#e74c3c"
+                    elseif tag == "DIAMOND TAG" then color = "#3498db" end
+                    
+                    props.PrefixText = "<font color='" .. color .. "'>[" .. tag .. "]</font> " .. message.PrefixText
+                end
+            end
+        end
+        return props
+    end
+    
     local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
     
     local screenGui = Instance.new("ScreenGui")
@@ -38,15 +60,15 @@ function GameController:MountLobby()
     local RoomService = Knit.GetService("RoomService")
 
     local element = Roact.createElement(Lobby, {
-        -- US-5.1: Now accepts dynamic difficulty and wordpack from the modal
-        OnCreate = function(difficulty, wordPack)
-            RoomService:CreateRoom(difficulty, wordPack):andThen(function(code)
+        OnCreate = function(difficulty, wordPack, isPublic)
+            RoomService:CreateRoom(difficulty, wordPack, isPublic):andThen(function(code)
                 if code then
                     self.CurrentRoomCode = code
                     self:MountWaitingRoom()
                 end
             end)
         end,
+        
         OnJoin = function(code)
             RoomService:JoinRoom(code, "None", "Operative"):andThen(function(success)
                 if success then

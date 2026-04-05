@@ -76,8 +76,9 @@ end
 -- US-5.3: Player Persistence & Economy
 function GameService:SaveGameStats(gr)
     if gr and gr.Room then
+        local DataService = Knit.GetService("DataService")
         for _, p in ipairs(gr.Room.Players) do
-            print("Saving DB -> " .. p.UserName .. ": Coins=" .. p.Coins .. " Wins=" .. p.Wins)
+            DataService:SavePlayerStats(p) 
         end
     end
 end
@@ -85,7 +86,8 @@ end
 -- US-5.2: Disconnect Handling
 function GameService:AbortActiveGame(roomId, disconnectedName)
     local gr = DataStore:Get_Room_State(roomId)
-    if not gr or gr.State == "GameOver" then return end
+    
+    if not gr or gr.State == "GameOver" or gr.State == "Aborted" then return end
 
     gr:AbortGame()
     self:Cancel_Timer(roomId)
@@ -182,7 +184,7 @@ function GameService.Client:RequestSecretBoard(player)
 end
 
 -- ==========================================
--- US-4.1: Select Card 
+-- US-4.1: Select Card
 -- ==========================================
 function GameService.Client:SelectCard(player, cardId)
     local selfServer = self.Server
@@ -196,9 +198,8 @@ function GameService.Client:SelectCard(player, cardId)
     
     local b = DataStore:Get_Active_Board()
     local c = b:Get_Card(cardId)
-    local revealed = c:Get_IsRevealed()
     
-    if revealed == true then
+    if c:Get_IsRevealed() then
         selfServer:Display_message(player, "Error: Card already revealed")
         return
     end
@@ -206,23 +207,28 @@ function GameService.Client:SelectCard(player, cardId)
     c:Set_IsRevealed(true)
     local color = c:Get_RealColor()
     
+    local TeamEnum = require(game:GetService("ReplicatedStorage").Shared.Enums.Team)
+    local ColorEnum = require(game:GetService("ReplicatedStorage").Shared.Enums.Color)
+    
+    local isCorrectTeamColor = (gr.CurrentTurn == TeamEnum.RED and color == ColorEnum.RED) or (gr.CurrentTurn == TeamEnum.BLUE and color == ColorEnum.BLUE)
+    
     if color == ColorEnum.BLACK then
         local opposingTeam = (gr.CurrentTurn == TeamEnum.RED) and TeamEnum.BLUE or TeamEnum.RED
         gr:Set_Winner(opposingTeam)
         
-        -- US-5.3: Save Stats
         selfServer:SaveGameStats(gr)
         self.GameOver:FireAll(tostring(opposingTeam))
         
-    elseif color == gr.CurrentTurn then
+    elseif isCorrectTeamColor then
         gr:Increment_Score()
         selfServer:Display_ScoreUpdate(gr)
         
         local remaining = b:Get_Remaining_Cards(color)
         if remaining == 0 then
-            gr:Set_Winner(color)
+            local winningTeam = (color == ColorEnum.RED) and TeamEnum.RED or TeamEnum.BLUE
+            gr:Set_Winner(winningTeam)
             selfServer:SaveGameStats(gr)
-            self.GameOver:FireAll(tostring(color))
+            self.GameOver:FireAll(tostring(winningTeam))
         end
     else 
         gr:Switch_Turn()
