@@ -29,6 +29,8 @@ function SoundController:KnitStart()
         self.CachedSounds[name] = s
     end
 
+    self.CachedSounds["Correct"].Volume = 0.4
+
     -- Automatically listen for the Game Over event!
     Knit.GetService("GameService").GameOver:Connect(function()
         self:Play("GameOver")

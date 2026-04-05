@@ -10,15 +10,24 @@ local Packs = {
         "BERRY", "BILL", "BLOCK", "BOARD", "BOLT", "BOMB", "BOND", "BOOM", "BOOT",
         "BOTTLE", "BOW", "BOX", "BRIDGE", "BRUSH", "BUCK", "BUFFALO", "BUG", "BUGLE"
     },
-    Roblox = {
-        "NOOB", "ROBUX", "AVATAR", "OBBY", "TYCOON", "GUEST", "BACON", "ADMIN",
-        "BAN", "SERVER", "CHAT", "BLOXBURG", "JAILBREAK", "ADOPT", "TRADE",
-        "SCAM", "GLITCH", "LAG", "PING", "UPDATE", "STUDIO", "SCRIPT", "PART",
-        "SPAWN", "BASEPLATE", "VIP", "PREMIUM", "CATALOG", "ITEM", "LIMITED",
-        "FACE", "GEAR", "HAT", "SHIRT", "PANTS", "GROUP", "CLAN", "GAME",
-        "PLAY", "BUILD", "DESTROY", "CREATE", "EVENT", "BADGE", "TIX", "SWORD",
-        "FORCEFIELD", "ROCKET", "TOOL", "BACKPACK"
-    }
+        
+        Gaming = {
+            "FORTNITE", "MINECRAFT", "DISCORD", "VALORANT", "ZELDA", "CHIEF", "VBUCKS", "TWITCH", 
+            "STREAM", "CONTROLLER", "CONSOLE", "QUEST", "BOSS", "LEVEL", "SKIN", "EMOTE",
+            "CLUTCH", "CAMPING", "LOOT", "GUILD", "LOBBY", "PICKAXE", "REVIVE", "ZONE", "LAG"
+        },
+
+        Food = {
+            "SUSHI", "RAMEN", "BOBA", "MATCHA", "TACO", "BURGER", "PIZZA", "PASTA",
+            "MOCHI", "CHIPS", "GUAC", "SPICY", "CAKE", "COOKIE", "COFFEE", "LATTE", 
+            "BREAD", "FRY", "STEAK", "WINGS", "NUGGET", "SAUCE", "CHEF", "MENU", "BAKE"
+        },
+
+        Movies = {
+            "MARVEL", "STARK", "SPIDER", "BATMAN", "JOKER", "POTTER", "WIZARD", "JEDI",
+            "FORCE", "AVATAR", "TITANIC", "OSCAR", "SCENE", "ACTOR", "DIRECTOR", "SCRIPT",
+            "HORROR", "ACTION", "COMEDY", "GRIFFIN", "SIMPSON", "DISNEY", "PIXAR", "STUNT", "FAME"
+        }
 }
 
 -- US-2.1 / US-2.2
