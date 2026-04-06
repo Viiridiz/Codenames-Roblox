@@ -66,6 +66,9 @@ function AnimatedSlot:render()
     })
 end
 
+-- ==========================================
+-- WAITING ROOM COMPONENT
+-- ==========================================
 local WaitingRoom = Roact.Component:extend("WaitingRoom")
 
 local function formatRole(roleName)
@@ -74,6 +77,8 @@ local function formatRole(roleName)
 end
 
 function WaitingRoom:init()
+    self.errorScaleRef = Roact.createRef()
+    
     self.state = {
         slots = {
             RedSpymaster = nil,
@@ -81,24 +86,55 @@ function WaitingRoom:init()
             BlueSpymaster = nil,
             BlueOperative = nil
         },
-        hostName = ""
+        hostName = "",
+        errorMessage = nil,
+        errorVisible = false
     }
+    
+    self.showError = function(msg)
+        pcall(function() Knit.GetController("SoundController"):Play("Wrong") end)
+        self:setState({ errorMessage = msg, errorVisible = true })
+        
+        task.defer(function()
+            local scale = self.errorScaleRef:getValue()
+            if scale then
+                scale.Scale = 0
+                TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+            end
+        end)
+    end
+    
+    self.closeError = function()
+        local scale = self.errorScaleRef:getValue()
+        if scale then
+            local t = TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.In), { Scale = 0 })
+            t:Play()
+            t.Completed:Connect(function() self:setState({ errorVisible = false }) end)
+        else
+            self:setState({ errorVisible = false })
+        end
+    end
 end
 
 function WaitingRoom:didMount()
     local RoomService = Knit.GetService("RoomService")
+    local GameService = Knit.GetService("GameService")
+    
     self.connection = RoomService.RoomUpdate:Connect(function(updatedSlots, hostName)
         self:setState({
             slots = updatedSlots,
             hostName = hostName or ""
         })
     end)
+    
+    self.errorConnection = GameService.ErrorMessage:Connect(function(msg)
+        self.showError(msg)
+    end)
 end
 
 function WaitingRoom:willUnmount()
-    if self.connection then
-        self.connection:Disconnect()
-    end
+    if self.connection then self.connection:Disconnect() end
+    if self.errorConnection then self.errorConnection:Disconnect() end
 end
 
 function WaitingRoom:RenderSlotButton(role, color)
@@ -198,6 +234,64 @@ function WaitingRoom:render()
                     Transparency = 0,
                     Disabled = not amIHost,
                     OnClick = function() if amIHost then self.props.OnStartGame() end end
+                })
+            })
+        }),
+        
+        ErrorOverlay = self.state.errorVisible and Roact.createElement("TextButton", { 
+            Size = UDim2.fromScale(1, 1), 
+            BackgroundColor3 = Color3.fromRGB(0, 0, 0), 
+            BackgroundTransparency = 0.6, 
+            Text = "", 
+            AutoButtonColor = false, 
+            Active = true, 
+            ZIndex = 50, 
+            [Roact.Event.Activated] = function() self.closeError() end 
+        }, {
+            ModalBox = Roact.createElement("Frame", { 
+                Size = UDim2.fromScale(0.3, 0.25), 
+                AnchorPoint = Vector2.new(0.5, 0.5), 
+                Position = UDim2.fromScale(0.5, 0.5), 
+                BackgroundColor3 = Color3.fromRGB(30, 30, 35), 
+                ZIndex = 51 
+            }, {
+                Scale = Roact.createElement("UIScale", { [Roact.Ref] = self.errorScaleRef, Scale = 0 }), 
+                Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(0.1, 0) }), 
+                Stroke = Roact.createElement("UIStroke", { Color = Color3.fromRGB(231, 76, 60), Thickness = 2 }), 
+                
+                WarningText = Roact.createElement("TextLabel", { 
+                    Text = "SYSTEM ERROR", 
+                    Size = UDim2.fromScale(1, 0.3), 
+                    Position = UDim2.fromScale(0, 0.1), 
+                    Font = Enum.Font.GothamBlack, 
+                    TextSize = 24, 
+                    TextColor3 = Color3.fromRGB(231, 76, 60), 
+                    BackgroundTransparency = 1, 
+                    ZIndex = 52 
+                }),
+                
+                DetailText = Roact.createElement("TextLabel", { 
+                    Text = self.state.errorMessage, 
+                    Size = UDim2.fromScale(0.9, 0.4), 
+                    AnchorPoint = Vector2.new(0.5, 0),
+                    Position = UDim2.fromScale(0.5, 0.4), 
+                    Font = Enum.Font.GothamBold, 
+                    TextSize = 18, 
+                    TextColor3 = Color3.fromRGB(220, 220, 220), 
+                    BackgroundTransparency = 1, 
+                    TextWrapped = true,
+                    ZIndex = 52 
+                }),
+                
+                OkBtn = Roact.createElement(AnimatedSlot, { 
+                    Text = "UNDERSTOOD", 
+                    Size = UDim2.fromScale(0.5, 0.25), 
+                    AnchorPoint = Vector2.new(0.5, 1),
+                    Position = UDim2.fromScale(0.5, 0.95), 
+                    Color = Color3.fromRGB(60, 60, 65), 
+                    Transparency = 0,
+                    Disabled = false, 
+                    OnClick = function() self.closeError() end 
                 })
             })
         })

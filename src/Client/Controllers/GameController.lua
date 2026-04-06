@@ -1,5 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local Roact = require(ReplicatedStorage.Packages.Roact)
 
@@ -7,9 +9,125 @@ local Lobby = require(script.Parent.Parent.Components.Lobby)
 local WaitingRoom = require(script.Parent.Parent.Components.WaitingRoom)
 local Board = require(script.Parent.Parent.Components.Board.Board)
 
+-- ==========================================
+-- CINEMATIC INTRO COMPONENT
+-- ==========================================
+local IntroScreen = Roact.Component:extend("IntroScreen")
+
+function IntroScreen:init()
+    self.bgRef = Roact.createRef()
+    self.textRef = Roact.createRef()
+    self.dotRef = Roact.createRef()
+end
+
+function IntroScreen:didMount()
+    local bg = self.bgRef:getValue()
+    local text = self.textRef:getValue()
+    local dot = self.dotRef:getValue()
+
+    TweenService:Create(text, TweenInfo.new(1.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+        TextTransparency = 0, 
+        Position = UDim2.fromScale(0.5, 0.5)
+    }):Play()
+    
+    TweenService:Create(dot, TweenInfo.new(1.5), {BackgroundTransparency = 0}):Play()
+
+    local pulseTween = TweenService:Create(dot, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+        Size = UDim2.fromOffset(18, 18),
+        BackgroundTransparency = 0.5
+    })
+    pulseTween:Play()
+
+    task.delay(4.5, function()
+        TweenService:Create(text, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            TextTransparency = 1, 
+            Position = UDim2.fromScale(0.5, 0.45)
+        }):Play()
+        
+        TweenService:Create(dot, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromScale(0.5, 0.52)
+        }):Play()
+        
+        task.wait(0.4)
+        pulseTween:Cancel()
+
+        local slideUp = TweenService:Create(bg, TweenInfo.new(0.8, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut), {
+            Position = UDim2.fromScale(0, -1) -- Moves it entirely off the top of the screen
+        })
+        slideUp:Play()
+        slideUp.Completed:Wait()
+        
+        if self.props.OnComplete then
+            self.props.OnComplete()
+        end
+    end)
+end
+
+function IntroScreen:render()
+    return Roact.createElement("Frame", {
+        [Roact.Ref] = self.bgRef,
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.fromScale(0, 0),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 25),
+        ZIndex = 100,
+    }, {
+        Text = Roact.createElement("TextLabel", {
+            [Roact.Ref] = self.textRef,
+            Text = "made with love by akeyla, ping and kevin.",
+            Font = Enum.Font.GothamMedium,
+            TextSize = 28,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextTransparency = 1,
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.54),
+            ZIndex = 105,
+        }),
+        
+        LoadingDot = Roact.createElement("Frame", {
+            [Roact.Ref] = self.dotRef,
+            Size = UDim2.fromOffset(12, 12),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.58),
+            BackgroundColor3 = Color3.fromRGB(52, 152, 219),
+            BackgroundTransparency = 1,
+            ZIndex = 105,
+        }, {
+            Corner = Roact.createElement("UICorner", { CornerRadius = UDim.new(1, 0) })
+        })
+    })
+end
+
+-- ==========================================
+-- GAME CONTROLLER
+-- ==========================================
 local GameController = Knit.CreateController { Name = "GameController" }
 
 function GameController:KnitStart()
+    task.spawn(function()
+        local success = false
+        while not success do
+            success, _ = pcall(function()
+                StarterGui:SetCore("ResetButtonCallback", false)
+            end)
+            task.wait(0.2)
+        end
+    end)
+
+    local function freezePlayer(character)
+        local humanoid = character:WaitForChild("Humanoid", 5)
+        if humanoid then
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+            humanoid.UseJumpPower = true
+        end
+    end
+    
+    if Players.LocalPlayer.Character then 
+        freezePlayer(Players.LocalPlayer.Character) 
+    end
+    Players.LocalPlayer.CharacterAdded:Connect(freezePlayer)
 
     local TextChatService = game:GetService("TextChatService")
     TextChatService.OnIncomingMessage = function(message)
@@ -37,6 +155,7 @@ function GameController:KnitStart()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "GameUI"
     screenGui.IgnoreGuiInset = true
+    screenGui.ResetOnSpawn = false
     screenGui.Parent = playerGui
 
     self.ScreenGui = screenGui
@@ -48,11 +167,26 @@ function GameController:KnitStart()
     self.GameService = Knit.GetService("GameService")
 
     self.GameService.GameStarted:Connect(function()
-        print("Controller: Game Started Signal")
         self:MountBoard()
     end)
     
     self:MountLobby()
+    self:MountIntro()
+end
+
+function GameController:MountIntro()
+    if self.IntroHandle then Roact.unmount(self.IntroHandle) end
+    
+    local element = Roact.createElement(IntroScreen, {
+        OnComplete = function()
+            if self.IntroHandle then
+                Roact.unmount(self.IntroHandle)
+                self.IntroHandle = nil
+            end
+        end
+    })
+    
+    self.IntroHandle = Roact.mount(element, self.ScreenGui)
 end
 
 function GameController:MountLobby()
@@ -70,7 +204,7 @@ function GameController:MountLobby()
         end,
         
         OnJoin = function(code)
-            RoomService:JoinRoom(code, "None", "Operative"):andThen(function(success)
+            RoomService:JoinRoom(code, "None", "None"):andThen(function(success)
                 if success then
                     self.CurrentRoomCode = code
                     self:MountWaitingRoom()
@@ -118,7 +252,6 @@ function GameController:MountBoard()
         end,
         
         OnGiveClue = function(word, number)
-            print("Controller: Sending Clue ->", word, number)
             self.GameService:SubmitClue(word, number)
         end,
 
